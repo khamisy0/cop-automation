@@ -10,6 +10,11 @@ export function generateHeader(): string {
 /**
  * Format merged data into ERP TXT format
  * Format: CountryCode|Brand|Season|Supplier|Reason|NewEffectiveDate|ToDate|Compensated|Mancode|Color|Size|NewEffectiveRetail|TransactionDescription
+ * 
+ * Business Rule:
+ * If Season = "000" and Reason contains "SAL":
+ *   - Change Reason to "MKD"
+ *   - Append "_000" to Transaction Description
  */
 export function formatERPLines(
   mergedData: MergedRow[],
@@ -26,13 +31,22 @@ export function formatERPLines(
     
     // Convert Compensated to uppercase YES/NO
     const compensated = formInputs.compensated === 'Yes' ? 'YES' : 'NO';
+    
+    // Apply business rule: If Season = "000" and Reason contains "SAL"
+    let reason = formInputs.reason.trim();
+    let transactionDescription = formInputs.transactionDescription.trim();
+    
+    if (row.season.trim() === '000' && reason.includes('SAL')) {
+      reason = 'MKD';
+      transactionDescription = transactionDescription + '_000';
+    }
 
     const erpLine = [
       formInputs.countryCode.trim(),
       formInputs.brand.trim(),
       row.season.trim(),
       formInputs.supplier.trim(),
-      formInputs.reason.trim(),
+      reason,
       formattedDate,
       '', // ToDate - left empty
       compensated,
@@ -40,7 +54,7 @@ export function formatERPLines(
       row.color.trim(),
       row.size.trim(),
       newEffectiveRetail,
-      formInputs.transactionDescription.trim(),
+      transactionDescription,
     ].join('|');
 
     erpLines.push(erpLine);

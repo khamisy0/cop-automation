@@ -32,6 +32,15 @@ export default function Home() {
     'B6': 'B601',
   };
 
+  // Country to code mapping
+  const countryCodeMap: { [key: string]: string } = {
+    'Lebanon': '01',
+    'UAE': '02',
+    'Kuwait': '03',
+    'Bahrain': '04',
+    'Qatar': '06',
+  };
+
   const handleFormChange = (field: keyof FormInputs, value: string) => {
     setFormInputs((prev) => {
       const updated = { ...prev, [field]: value };
@@ -39,6 +48,12 @@ export default function Home() {
       // Auto-populate supplier when brand changes
       if (field === 'brand') {
         updated.supplier = brandSupplierMap[value] || '';
+      }
+      
+      // Auto-populate country code when country is selected
+      if (field === 'countryCode') {
+        // The value will be the country name, convert to code for internal use
+        updated.countryCode = countryCodeMap[value] || '';
       }
       
       return updated;
@@ -119,8 +134,12 @@ export default function Home() {
       return;
     }
 
+    // Add header as first line
+    const header = 'CountryCode|Brand|Season|Supplier|Reason|NewEffectiveDate|ToDate|Compensated|Mancode|Color|Size|NewEffectiveRetail|TransactionDescription';
+    const allLines = [header, ...result.erpLines];
+    
     // Create content with Windows line breaks
-    const content = result.erpLines.join('\r\n') + '\r\n';
+    const content = allLines.join('\r\n') + '\r\n';
 
     // Create blob with UTF-8 encoding
     const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
@@ -162,20 +181,25 @@ export default function Home() {
             <div className="mb-8">
               <h2 className="text-xl font-semibold text-gray-900 mb-4">Step 2: Enter Details</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Country Code */}
+                {/* Country */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Country Code *
+                    Country *
                   </label>
-                  <input
-                    type="text"
+                  <select
                     name="countryCode"
-                    value={formInputs.countryCode}
+                    value={Object.keys(countryCodeMap).find(country => countryCodeMap[country] === formInputs.countryCode) || ''}
                     onChange={(e) => handleFormChange('countryCode', e.target.value)}
-                    placeholder="e.g., US"
                     disabled={isProcessing}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
+                  >
+                    <option value="">Select a country</option>
+                    <option value="Lebanon">Lebanon - 01</option>
+                    <option value="UAE">UAE - 02</option>
+                    <option value="Kuwait">Kuwait - 03</option>
+                    <option value="Bahrain">Bahrain - 04</option>
+                    <option value="Qatar">Qatar - 06</option>
+                  </select>
                 </div>
 
                 {/* Brand */}
@@ -188,7 +212,7 @@ export default function Home() {
                     value={formInputs.brand}
                     onChange={(e) => handleFormChange('brand', e.target.value)}
                     disabled={isProcessing}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
                   >
                     <option value="">Select a brand</option>
                     <option value="56">Intimissimi - 56</option>
@@ -207,7 +231,7 @@ export default function Home() {
                     value={formInputs.supplier}
                     disabled={true}
                     placeholder="Automatically filled based on brand"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 cursor-not-allowed"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 cursor-not-allowed text-gray-700"
                   />
                 </div>
 
@@ -223,7 +247,7 @@ export default function Home() {
                     onChange={(e) => handleFormChange('reason', e.target.value)}
                     placeholder="e.g., Seasonal promotion"
                     disabled={isProcessing}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
                   />
                 </div>
 
@@ -238,7 +262,7 @@ export default function Home() {
                     value={formInputs.newEffectiveDate}
                     onChange={(e) => handleFormChange('newEffectiveDate', e.target.value)}
                     disabled={isProcessing}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
                   />
                 </div>
 
@@ -252,7 +276,7 @@ export default function Home() {
                     value={formInputs.compensated}
                     onChange={(e) => handleFormChange('compensated', e.target.value as 'Yes' | 'No')}
                     disabled={isProcessing}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
                   >
                     <option value="Yes">Yes</option>
                     <option value="No">No</option>
@@ -271,7 +295,7 @@ export default function Home() {
                     onChange={(e) => handleFormChange('transactionDescription', e.target.value)}
                     placeholder="e.g., Price adjustment for Q1 promotion"
                     disabled={isProcessing}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
                   />
                 </div>
               </div>

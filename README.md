@@ -35,7 +35,9 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+Open [http://localhost:3010](http://localhost:3010) in your browser.
+
+(Default port is 3010. To use a different port, set the PORT environment variable.)
 
 ### Production Build
 
@@ -138,7 +140,10 @@ CountryCode|Brand|Season|Supplier|Reason|NewEffectiveDate|ToDate|Compensated|Man
 
 ### Parsing
 - Columns detected case-insensitively
-- Supports multiple naming variations (e.g., "Mancode", "Man Code", "Man-code")
+- Supports multiple naming variations in English and Italian:
+  - Mancode: "mancode", "man code", "code", "codicearticolo"
+  - Color: "color", "colore", "codicecolore"
+  - ColorSize: "colorsize", "color size", "sku", "lot"
 - Leading zeros preserved in all fields
 - Hidden characters removed
 
@@ -161,6 +166,16 @@ Discount % = 1 - (Sale Price / Unit Retail)
 New Effective Retail = Sale Price
 ```
 
+### Business Rules
+**Season-Based Processing Rule:**
+- If Season = "000" AND Reason contains "SAL":
+  - Reason is changed to "MKD"
+  - "_000" is appended to Transaction Description
+  
+Example:
+- Original: Season=000, Reason=SAL4, Transaction Description=sale_phase_4
+- Result: Season=000, Reason=MKD, Transaction Description=sale_phase_4_000
+
 ## ✅ Validation Rules
 
 1. **File Upload**
@@ -170,12 +185,11 @@ New Effective Retail = Sale Price
 
 2. **Form Fields**
    - Country Code: required, text
-   - Brand: required, text
-   - Supplier: required, text
-   - Reason: required, dropdown
+   - Brand: required, dropdown (56 or B6)
+   - Supplier: auto-populated based on brand (5601 or B601)
+   - Reason: required, free text
    - New Effective Date: required, valid date
-   - To Date: required, valid date
-   - Compensated: required, Yes/No
+   - Compensated: required, YES/NO
    - Transaction Description: required, text
 
 3. **Data Quality**

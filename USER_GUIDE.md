@@ -3,7 +3,9 @@
 ## Quick Start
 
 ### Step 1: Access the System
-Open your web browser and navigate to the COP Automation System URL (provided by your administrator).
+Open your web browser and navigate to:
+- **Local development:** http://localhost:3010
+- **Production URL:** Provided by your administrator
 
 ### Step 2: Prepare Your Files
 
@@ -33,16 +35,15 @@ You'll see a confirmation with the filename and file size.
 
 Complete all required fields:
 
-| Field | Description | Example |
-|-------|-------------|---------|
-| Country Code | Two-letter country code | US |
-| Brand | Brand name | Nike |
-| Supplier | Supplier name | Supplier XYZ |
-| Reason | Why prices are changing | PROMOTIONAL |
-| New Effective Date | When new prices start | 2024-03-01 |
-| To Date | When new prices end | 2024-03-31 |
-| Compensated | Was the merchant compensated? | No |
-| Transaction Description | Description of the change | Q1 Spring Promotion |
+| Field | Description | Options/Format |
+|-------|-------------|-----------------|
+| Country Code | Two-letter country code | e.g., US, IT, FR |
+| Brand | Select the brand | Intimissimi-56 or IUMAN UOMO-B6 |
+| Supplier | Auto-populated based on brand | 5601 (for 56) or B601 (for B6) |
+| Reason | Why prices are changing | Free text, e.g., SAL4, PROMO, CLEAR |
+| New Effective Date | When new prices start | Date picker (YYYY-MM-DD) |
+| Compensated | Was the merchant compensated? | Yes or No |
+| Transaction Description | Description of the change | Free text, e.g., sale_phase_4 |
 
 ### Step 5: Process
 
@@ -72,25 +73,29 @@ Click "Download COP.txt" to download the ERP file ready for upload to your syste
 The system recognizes columns by multiple naming conventions (case-insensitive):
 
 **Brand Manager - Mancode:**
-- "Mancode" or "Man Code" or "Man-code" or "Code"
+- English: "Mancode", "Man Code", "Man-code", "Code"
+- Italian: "CodiceArticolo"
 
 **Brand Manager - Color:**
-- "Color"
+- English: "Color"
+- Italian: "Colore", "CodiceColore"
 
 **Brand Manager - Season:**
 - "Season"
 
 **Brand Manager - Sale Price:**
-- "Sale Price" or "SalePrice" or "Price"
+- "Sale Price", "SalePrice", "Price"
 
 **RHM - Mancode:**
-- "Mancode" or "Man Code" or "Man-code" or "Code"
+- English: "Mancode", "Man Code", "Man-code", "Code"
+- Italian: "CodiceArticolo"
 
 **RHM - ColorSize:**
-- "ColorSize" or "Color Size" or "Color-Size" or "SKU"
+- English: "ColorSize", "Color Size", "Color-Size", "SKU"
+- Italian: "LOT"
 
 **RHM - Unit Retail:**
-- "Unit Retail" or "UnitRetail" or "Retail" or "Unit Price"
+- "Unit Retail", "UnitRetail", "Retail", "Unit Price"
 
 ### ColorSize Format
 
@@ -123,6 +128,40 @@ CountryCode|Brand|Season|Supplier|Reason|NewEffectiveDate|ToDate|Compensated|Man
 - Dates are in YYYYMMDD format (no dashes)
 - ToDate field is included but always empty
 - Compensated values: YES or NO (uppercase)
+
+---
+
+## Business Rules
+
+### Season-Based Processing
+
+**Automatic Reason & Description Modification (Season 000 Special Handling)**
+
+When processing data, the system applies the following rule:
+
+**Condition:** If Season = "000" AND Reason contains "SAL"
+- **Modify Reason:** Changed from the original to "MKD"
+- **Modify Description:** Append "_000" to the Transaction Description
+
+**Example:**
+
+Input batch with mixed seasons:
+| Mancode | Color | Season | Reason | Transaction Description |
+|---------|-------|--------|--------|--------------------------|
+| 100085133 | 0010 | 252 | SAL4 | sale_phase_4 |
+| 100085134 | 0010 | 261 | SAL4 | sale_phase_4 |
+| 100085135 | 0010 | 000 | SAL4 | sale_phase_4 |
+
+Output in COP.txt:
+```
+02|56|252|5601|SAL4|20260301||NO|100085133|0010|07402|849|sale_phase_4
+02|56|261|5601|SAL4|20260301||NO|100085134|0010|07402|899|sale_phase_4
+02|56|000|5601|MKD|20260301||NO|100085135|0010|07402|949|sale_phase_4_000
+```
+
+Notice:
+- Seasons 252 and 261: Reason stays "SAL4", Description unchanged
+- Season 000: Reason changes to "MKD", Description becomes "sale_phase_4_000"
 
 ---
 
