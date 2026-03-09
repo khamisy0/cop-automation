@@ -1,0 +1,53 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Euro Retail reference table
+// Stores article information with euro retail prices
+model EuroRetail {
+  id                    Int      @id @default(autoincrement())
+  batchNumber           String
+  lineNumber            String
+  country               String   @default("N/A")
+  brandCode            String
+  brandDescription     String
+  mancode              String
+  colorSize            String
+  effectiveDate        DateTime
+  importFileColor      String?  // Optional
+  importFileSizeList   String?  // Optional
+  euroRetail           Float
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@unique([batchNumber, lineNumber])
+  @@map("euro_retail")
+}
+
+// Price Matrix table
+// Maps country/brand/season combinations to local retail prices
+model PriceMatrix {
+  id              Int     @id @default(autoincrement())
+  country         String
+  brandCode       String
+  season          String
+  supplier        String
+  section         String?  // Optional empty field
+  foreignRetailFOB Float   // Euro price
+  unitRetail      Float   // Local price
+  effectiveDate   DateTime
+  expiryDate      DateTime
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([country, brandCode, season, supplier, foreignRetailFOB])
+  @@map("price_matrix")
+}
