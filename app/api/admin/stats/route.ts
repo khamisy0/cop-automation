@@ -9,34 +9,39 @@ export async function GET() {
       orderBy: { updatedAt: "desc" },
     });
 
-    // Get Price Matrix count and last updated
     const priceMatrixCount = await prisma.priceMatrix.count();
     const latestPriceMatrix = await prisma.priceMatrix.findFirst({
       orderBy: { updatedAt: "desc" },
     });
 
-    const euroRetailLastUpdated = latestEuroRetail
-      ? new Date(latestEuroRetail.updatedAt).toLocaleDateString("en-US", {
-          year: "numeric",
-          month: "short",
-          day: "numeric",
-        })
-      : "Never";
+    // Get Seasonality Reference count and last updated
+    const seasonalityCount = await prisma.seasonalityReference.count();
+    const latestSeasonality = await prisma.seasonalityReference.findFirst({
+      orderBy: { updatedAt: "desc" },
+    });
 
-    const priceMatrixLastUpdated = latestPriceMatrix
-      ? new Date(latestPriceMatrix.updatedAt).toLocaleDateString("en-US", {
-          year: "numeric",
-          month: "short",
-          day: "numeric",
-        })
-      : "Never";
+    const formatDate = (date: Date | undefined | null) =>
+      date
+        ? new Date(date).toLocaleDateString("en-US", {
+            year: "numeric",
+            month: "short",
+            day: "numeric",
+          })
+        : "Never";
+
+    const euroRetailLastUpdated = formatDate(latestEuroRetail?.updatedAt);
+    const priceMatrixLastUpdated = formatDate(latestPriceMatrix?.updatedAt);
+    const seasonalityLastUpdated = formatDate(latestSeasonality?.updatedAt);
 
     return NextResponse.json({
       euroRetailCount,
       euroRetailLastUpdated,
       priceMatrixCount,
       priceMatrixLastUpdated,
+      seasonalityCount,
+      seasonalityLastUpdated,
     });
+
   } catch (error) {
     console.error("Error fetching stats:", error);
     return NextResponse.json(

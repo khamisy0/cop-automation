@@ -2,7 +2,7 @@
 
 import { type LucideIcon } from 'lucide-react';
 
-export type ColorAccent = 'indigo' | 'blue' | 'emerald' | 'amber' | 'purple' | 'gray';
+export type ColorAccent = 'indigo' | 'blue' | 'emerald' | 'amber' | 'purple' | 'teal' | 'gray';
 
 interface StatCardProps {
   title: string;
@@ -20,6 +20,7 @@ export default function StatCard({ title, value, icon: Icon, trend, trendUp, col
     emerald: 'bg-emerald-50 text-emerald-600',
     amber: 'bg-amber-50 text-amber-600',
     purple: 'bg-purple-50 text-purple-600',
+    teal: 'bg-teal-50 text-teal-600',
     gray: 'bg-gray-50 text-gray-500',
   };
 

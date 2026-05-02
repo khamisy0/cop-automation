@@ -16,7 +16,6 @@ model EuroRetail {
   id                    Int      @id @default(autoincrement())
   batchNumber           String
   lineNumber            String
-  country               String   @default("N/A")
   brandCode            String
   brandDescription     String
   mancode              String
@@ -50,4 +49,24 @@ model PriceMatrix {
 
   @@unique([country, brandCode, season, supplier, foreignRetailFOB])
   @@map("price_matrix")
+}
+
+// Seasonality Reference table
+// Centralized source of truth for variant collection active seasons
+model SeasonalityReference {
+  id               Int      @id @default(autoincrement())
+  country          String   // Can be empty/null for generic entries
+  priority         Int      // Lower number = higher priority
+  fromDate1        String?  // From (date or identifier)
+  mancode          String
+  colorCode        String
+  season           String   // Variant Collection Active Season
+  fromDate2        String?  // From (second field)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Composite indexes for fast lookups during validation
+  @@index([country, mancode, colorCode])
+  @@index([mancode, colorCode])
+  @@map("seasonality_reference")
 }

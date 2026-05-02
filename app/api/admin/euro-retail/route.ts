@@ -22,7 +22,6 @@ export async function POST(request: Request) {
     const {
       batchNumber,
       lineNumber,
-      country,
       brandCode,
       brandDescription,
       mancode,
@@ -37,7 +36,6 @@ export async function POST(request: Request) {
     if (
       !batchNumber ||
       !lineNumber ||
-      !country ||
       !brandCode ||
       !mancode ||
       euroRetail === undefined
@@ -67,7 +65,6 @@ export async function POST(request: Request) {
       data: {
         batchNumber,
         lineNumber,
-        country,
         brandCode,
         brandDescription: brandDescription || "",
         mancode,

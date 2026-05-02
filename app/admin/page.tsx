@@ -38,6 +38,7 @@ export default function AdminDashboard() {
         setStats([
           { table: "Euro Retail Prices", count: data.euroRetailCount, lastUpdated: data.euroRetailLastUpdated, icon: CreditCard, href: "/admin/euro-retail", description: "Maps article codes to Euro retail prices", color: "blue" },
           { table: "Price Matrix", count: data.priceMatrixCount, lastUpdated: data.priceMatrixLastUpdated, icon: Grid3X3, href: "/admin/price-matrix", description: "Maps Euro retail to local retail with discount factors", color: "indigo" },
+          { table: "Seasonality Reference", count: data.seasonalityCount, lastUpdated: data.seasonalityLastUpdated, icon: Database, href: "/admin/seasonality", description: "Centralized source of truth for variant expected seasons", color: "amber" },
         ]);
       } catch (err) { setError(err instanceof Error ? err.message : "An error occurred"); }
       finally { setLoading(false); }

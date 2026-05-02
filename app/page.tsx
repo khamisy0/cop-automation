@@ -10,6 +10,7 @@ import {
   FolderOpen,
   TrendingUp,
   Layers,
+  ClipboardCheck,
 } from 'lucide-react';
 import StatCard, { type ColorAccent } from '@/components/ui/StatCard';
 
@@ -37,13 +38,23 @@ export default function Dashboard() {
     },
     {
       id: 'seasonality',
-      title: 'Seasonality Reference Sheet',
-      description: 'Manage seasonal product variations and pricing strategies',
+      title: 'Seasonality Validation',
+      description: 'Validate item seasons against a centralized, priority-based reference dataset',
       icon: BarChart3,
-      href: '#',
-      status: 'coming-soon' as const,
+      href: '/seasonality-validation',
+      status: 'active' as const,
       color: 'amber' as ColorAccent,
-      features: ['Seasonal analysis', 'Trend forecasting', 'Historical data'],
+      features: ['Master dataset reference', 'Priority-based matching', 'Excel & Text validation'],
+    },
+    {
+      id: 'monthly-closing',
+      title: 'Monthly Closing Validation',
+      description: 'Validate and verify monthly closing data to ensure accuracy before final submission',
+      icon: ClipboardCheck,
+      href: '/monthly-closing',
+      status: 'active' as const,
+      color: 'teal' as ColorAccent,
+      features: ['Closing data validation', 'Discrepancy detection', 'Pre-submission checks'],
     },
   ];
 
@@ -53,6 +64,7 @@ export default function Dashboard() {
     emerald: 'bg-emerald-50 text-emerald-600',
     amber: 'bg-amber-50 text-amber-600',
     purple: 'bg-purple-50 text-purple-600',
+    teal: 'bg-teal-50 text-teal-600',
     gray: 'bg-gray-50 text-gray-500',
   };
 
@@ -60,7 +72,7 @@ export default function Dashboard() {
     <div className="space-y-6 animate-fade-in">
       {/* Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
-        <StatCard title="Active Modules" value="2" icon={Layers} trend="1 coming soon" color="indigo" />
+        <StatCard title="Active Modules" value="4" icon={Layers} trend="Fully operational" color="indigo" />
         <StatCard title="Files Processed" value="—" icon={FileSpreadsheet} color="blue" />
         <StatCard title="COP Batches" value="—" icon={FolderOpen} color="emerald" />
         <StatCard title="Requests Processed" value="—" icon={TrendingUp} color="purple" />
@@ -85,7 +97,7 @@ export default function Dashboard() {
                   <div className={`p-2.5 rounded-lg ${badgeStyles[module.color]}`}>
                     <Icon className="h-5 w-5" />
                   </div>
-                  {module.status === 'coming-soon' && (
+                  {(module.status as string) === 'coming-soon' && (
                     <span className="text-xs font-medium text-amber-700 bg-amber-50 px-2.5 py-1 rounded-full">
                       Coming Soon
                     </span>

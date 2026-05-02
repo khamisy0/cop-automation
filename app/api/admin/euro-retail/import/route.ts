@@ -101,7 +101,6 @@ export async function POST(request: Request) {
       // Extract with multiple possible column name variations safely
       const batchNumber = extractField(entry, ["Batch Number", "batchNumber", "Batch number"]);
       const lineNumber = extractField(entry, ["Line Number", "lineNumber", "Line number"]);
-      const country = extractField(entry, ["Country", "country"]);
       const brandCode = extractField(entry, ["Brand Code", "brandCode", "Brand code"]);
       const brandDescription = extractField(entry, ["Brand Description", "brandDescription", "Brand description"]);
       const mancode = extractField(entry, ["Mancode", "mancode"]);
@@ -112,9 +111,9 @@ export async function POST(request: Request) {
       const effectiveDateInput = getExactField(entry, ["Effective Date", "effectiveDate"]);
 
       // Validate required fields
-      if (!batchNumber || !lineNumber || !country || !brandCode || !mancode) {
+      if (!batchNumber || !lineNumber || !brandCode || !mancode) {
         results.errors.push(
-          `Row ${rowIndex + 1}: Missing required fields (Batch: "${batchNumber}", Line: "${lineNumber}", Country: "${country}", Brand: "${brandCode}", Mancode: "${mancode}")`
+          `Row ${rowIndex + 1}: Missing required fields (Batch: "${batchNumber}", Line: "${lineNumber}", Brand: "${brandCode}", Mancode: "${mancode}")`
         );
         results.skipped++;
         continue;
@@ -150,7 +149,6 @@ export async function POST(request: Request) {
             data: {
               batchNumber,
               lineNumber,
-              country,
               brandCode,
               brandDescription,
               mancode,
@@ -167,7 +165,6 @@ export async function POST(request: Request) {
             data: {
               batchNumber,
               lineNumber,
-              country,
               brandCode,
               brandDescription,
               mancode,
@@ -197,7 +194,7 @@ export async function POST(request: Request) {
           details: {
             totalRows: entries.length,
             columnsFound: firstRowColumns.join(", "),
-            expectedColumns: "Batch Number, Line Number, Country, Brand Code, Brand Description, Mancode, Color Size, Effective Date, Import File Color, Import File Size List, Euro Retail"
+            expectedColumns: "Batch Number, Line Number, Brand Code, Brand Description, Mancode, Color Size, Effective Date, Import File Color, Import File Size List, Euro Retail"
           },
           ...results,
         },

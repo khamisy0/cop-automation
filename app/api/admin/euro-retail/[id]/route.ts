@@ -11,7 +11,6 @@ export async function PUT(
     const {
       batchNumber,
       lineNumber,
-      country,
       brandCode,
       brandDescription,
       mancode,
@@ -25,7 +24,6 @@ export async function PUT(
     if (
       !batchNumber ||
       !lineNumber ||
-      !country ||
       !brandCode ||
       !mancode ||
       euroRetail === undefined
@@ -41,7 +39,6 @@ export async function PUT(
       data: {
         batchNumber,
         lineNumber,
-        country,
         brandCode,
         brandDescription: brandDescription || "",
         mancode,

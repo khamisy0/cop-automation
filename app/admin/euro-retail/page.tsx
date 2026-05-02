@@ -5,13 +5,13 @@ import { Plus, Edit2, Trash2, Download, Upload, X, Check, Search, ChevronLeft, C
 import * as XLSX from "xlsx";
 
 interface EuroRetailEntry {
-  id: number; batchNumber: string; lineNumber: string; country: string; brandCode: string; brandDescription: string;
+  id: number; batchNumber: string; lineNumber: string; brandCode: string; brandDescription: string;
   mancode: string; colorSize: string; effectiveDate: string; importFileColor: string | null;
   importFileSizeList: string | null; euroRetail: number; createdAt: string; updatedAt: string;
 }
 
 interface FormState {
-  batchNumber: string; lineNumber: string; country: string; brandCode: string; brandDescription: string;
+  batchNumber: string; lineNumber: string; brandCode: string; brandDescription: string;
   mancode: string; colorSize: string; effectiveDate: string; importFileColor: string;
   importFileSizeList: string; euroRetail: string;
 }
@@ -24,14 +24,14 @@ export default function EuroRetailAdmin() {
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [searchFilters, setSearchFilters] = useState({
-    batchNumber: "", lineNumber: "", country: "", brandCode: "", brandDescription: "", mancode: "", colorSize: "", effectiveDate: "", euroRetail: ""
+    batchNumber: "", lineNumber: "", brandCode: "", brandDescription: "", mancode: "", colorSize: "", effectiveDate: "", euroRetail: ""
   });
   const [showForm, setShowForm] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [formData, setFormData] = useState<FormState>({
-    batchNumber: "", lineNumber: "", country: "", brandCode: "", brandDescription: "", mancode: "", colorSize: "",
+    batchNumber: "", lineNumber: "", brandCode: "", brandDescription: "", mancode: "", colorSize: "",
     effectiveDate: new Date().toISOString().split("T")[0], importFileColor: "", importFileSizeList: "", euroRetail: "",
   });
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
@@ -45,21 +45,21 @@ export default function EuroRetailAdmin() {
   }
 
   async function handleSave() {
-    if (!formData.batchNumber.trim() || !formData.lineNumber.trim() || !formData.country.trim() || !formData.brandCode.trim() || !formData.mancode.trim() || !formData.euroRetail.trim()) { setError("Please fill in all required fields"); return; }
+    if (!formData.batchNumber.trim() || !formData.lineNumber.trim() || !formData.brandCode.trim() || !formData.mancode.trim() || !formData.euroRetail.trim()) { setError("Please fill in all required fields"); return; }
     const euroRetailNum = parseFloat(formData.euroRetail);
     if (isNaN(euroRetailNum)) { setError("Euro Retail must be a valid number"); return; }
     try {
       const method = editingId ? "PUT" : "POST";
       const url = editingId ? `/api/admin/euro-retail/${editingId}` : "/api/admin/euro-retail";
       const r = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify({
-        batchNumber: formData.batchNumber.trim(), lineNumber: formData.lineNumber.trim(), country: formData.country.trim(), brandCode: formData.brandCode.trim(),
+        batchNumber: formData.batchNumber.trim(), lineNumber: formData.lineNumber.trim(), brandCode: formData.brandCode.trim(),
         brandDescription: formData.brandDescription.trim(), mancode: formData.mancode.trim(), colorSize: formData.colorSize.trim(),
         effectiveDate: new Date(formData.effectiveDate), importFileColor: formData.importFileColor.trim() || null,
         importFileSizeList: formData.importFileSizeList.trim() || null, euroRetail: euroRetailNum,
       })});
       if (!r.ok) throw new Error("Failed to save");
       setSuccessMessage(editingId ? "Entry updated" : "Entry created"); setShowForm(false); setEditingId(null);
-      setFormData({ batchNumber: "", lineNumber: "", country: "", brandCode: "", brandDescription: "", mancode: "", colorSize: "", effectiveDate: new Date().toISOString().split("T")[0], importFileColor: "", importFileSizeList: "", euroRetail: "" });
+      setFormData({ batchNumber: "", lineNumber: "", brandCode: "", brandDescription: "", mancode: "", colorSize: "", effectiveDate: new Date().toISOString().split("T")[0], importFileColor: "", importFileSizeList: "", euroRetail: "" });
       setTimeout(() => setSuccessMessage(null), 3000); fetchEntries();
     } catch (err) { setError(err instanceof Error ? err.message : "An error occurred"); }
   }
@@ -71,7 +71,7 @@ export default function EuroRetailAdmin() {
 
   async function handleDownload() {
     try {
-      const ws = XLSX.utils.json_to_sheet(entries.map((e) => ({ "Batch Number": e.batchNumber, "Line Number": e.lineNumber, Country: e.country, "Brand Code": e.brandCode, "Brand Description": e.brandDescription, Mancode: e.mancode, "Color Size": e.colorSize, "Effective Date": new Date(e.effectiveDate).toLocaleDateString(), "Import File Color": e.importFileColor || "", "Import File Size List": e.importFileSizeList || "", "Euro Retail": e.euroRetail })));
+      const ws = XLSX.utils.json_to_sheet(entries.map((e) => ({ "Batch Number": e.batchNumber, "Line Number": e.lineNumber, "Brand Code": e.brandCode, "Brand Description": e.brandDescription, Mancode: e.mancode, "Color Size": e.colorSize, "Effective Date": new Date(e.effectiveDate).toLocaleDateString(), "Import File Color": e.importFileColor || "", "Import File Size List": e.importFileSizeList || "", "Euro Retail": e.euroRetail })));
       const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "EuroRetail"); XLSX.writeFile(wb, "euro-retail.xlsx");
     } catch (err) { setError(err instanceof Error ? err.message : "Failed to download"); }
   }
@@ -112,7 +112,6 @@ export default function EuroRetailAdmin() {
     return (
       e.batchNumber.toLowerCase().includes(searchFilters.batchNumber.toLowerCase()) &&
       e.lineNumber.toLowerCase().includes(searchFilters.lineNumber.toLowerCase()) &&
-      e.country.toLowerCase().includes(searchFilters.country.toLowerCase()) &&
       e.brandCode.toLowerCase().includes(searchFilters.brandCode.toLowerCase()) &&
       e.brandDescription.toLowerCase().includes(searchFilters.brandDescription.toLowerCase()) &&
       e.mancode.toLowerCase().includes(searchFilters.mancode.toLowerCase()) &&
@@ -173,7 +172,6 @@ export default function EuroRetailAdmin() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             <input type="text" placeholder="Batch Number *" value={formData.batchNumber} onChange={(e) => setFormData({ ...formData, batchNumber: e.target.value })} className={inputClass} />
             <input type="text" placeholder="Line Number *" value={formData.lineNumber} onChange={(e) => setFormData({ ...formData, lineNumber: e.target.value })} className={inputClass} />
-            <input type="text" placeholder="Country *" value={formData.country} onChange={(e) => setFormData({ ...formData, country: e.target.value })} className={inputClass} />
             <input type="text" placeholder="Brand Code *" value={formData.brandCode} onChange={(e) => setFormData({ ...formData, brandCode: e.target.value })} className={inputClass} />
             <input type="text" placeholder="Brand Description" value={formData.brandDescription} onChange={(e) => setFormData({ ...formData, brandDescription: e.target.value })} className={inputClass} />
             <input type="text" placeholder="Mancode *" value={formData.mancode} onChange={(e) => setFormData({ ...formData, mancode: e.target.value })} className={inputClass} />
@@ -196,8 +194,8 @@ export default function EuroRetailAdmin() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead><tr className="bg-gray-50 border-b border-gray-200">
-                {["Batch #", "Line #", "Country", "Brand Code", "Brand Desc.", "Mancode", "Color Size", "Eff. Date", "Euro Retail", "Actions"].map((h) => {
-                  const filterKey = h === "Batch #" ? "batchNumber" : h === "Line #" ? "lineNumber" : h === "Country" ? "country" : h === "Brand Code" ? "brandCode" : h === "Brand Desc." ? "brandDescription" : h === "Mancode" ? "mancode" : h === "Color Size" ? "colorSize" : h === "Eff. Date" ? "effectiveDate" : h === "Euro Retail" ? "euroRetail" : null;
+                {["Batch #", "Line #", "Brand Code", "Brand Desc.", "Mancode", "Color Size", "Eff. Date", "Euro Retail", "Actions"].map((h) => {
+                  const filterKey = h === "Batch #" ? "batchNumber" : h === "Line #" ? "lineNumber" : h === "Brand Code" ? "brandCode" : h === "Brand Desc." ? "brandDescription" : h === "Mancode" ? "mancode" : h === "Color Size" ? "colorSize" : h === "Eff. Date" ? "effectiveDate" : h === "Euro Retail" ? "euroRetail" : null;
                   return (
                     <th key={h} className={`px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider align-top ${h === 'Euro Retail' ? 'text-right' : ''}`}>
                       <div className="mb-2">{h}</div>
@@ -219,7 +217,6 @@ export default function EuroRetailAdmin() {
                   <tr key={entry.id} className="hover:bg-gray-50 transition duration-200">
                     <td className="px-4 py-3 text-gray-900">{entry.batchNumber}</td>
                     <td className="px-4 py-3 text-gray-900">{entry.lineNumber}</td>
-                    <td className="px-4 py-3 text-gray-900">{entry.country}</td>
                     <td className="px-4 py-3"><span className="px-2 py-0.5 bg-gray-100 text-gray-700 rounded text-xs font-medium">{entry.brandCode}</span></td>
                     <td className="px-4 py-3 text-gray-500">{entry.brandDescription}</td>
                     <td className="px-4 py-3 text-gray-900 font-medium">{entry.mancode}</td>
@@ -234,7 +231,7 @@ export default function EuroRetailAdmin() {
                         </div>
                       ) : (
                         <div className="flex gap-1">
-                          <button onClick={() => { setEditingId(entry.id); setFormData({ batchNumber: entry.batchNumber, lineNumber: entry.lineNumber, country: entry.country, brandCode: entry.brandCode, brandDescription: entry.brandDescription, mancode: entry.mancode, colorSize: entry.colorSize, effectiveDate: new Date(entry.effectiveDate).toISOString().split("T")[0], importFileColor: entry.importFileColor || "", importFileSizeList: entry.importFileSizeList || "", euroRetail: entry.euroRetail.toString() }); setShowForm(true); }} className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition"><Edit2 className="h-4 w-4" /></button>
+                          <button onClick={() => { setEditingId(entry.id); setFormData({ batchNumber: entry.batchNumber, lineNumber: entry.lineNumber, brandCode: entry.brandCode, brandDescription: entry.brandDescription, mancode: entry.mancode, colorSize: entry.colorSize, effectiveDate: new Date(entry.effectiveDate).toISOString().split("T")[0], importFileColor: entry.importFileColor || "", importFileSizeList: entry.importFileSizeList || "", euroRetail: entry.euroRetail.toString() }); setShowForm(true); }} className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition"><Edit2 className="h-4 w-4" /></button>
                           <button onClick={() => setDeleteConfirm(entry.id)} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition"><Trash2 className="h-4 w-4" /></button>
                         </div>
                       )}

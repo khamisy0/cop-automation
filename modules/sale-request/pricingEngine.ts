@@ -6,7 +6,7 @@
 import { ItemListRow, ProcessedItem, PriceListData, ProcessingError } from './types';
 
 interface EuroRetailMap {
-  [compositeKey: string]: number; // country-brand-mancode -> euroRetail
+  [compositeKey: string]: number; // brand-mancode -> euroRetail
 }
 
 interface PriceMatrixMap {
@@ -76,13 +76,13 @@ export async function processPricingForItems(
     const rowNum = index + 2; // +2 for header and 1-based indexing
 
     try {
-      // Step 1: Get Euro Retail from database map
-      const euroRetailKey = `${country}-${brand}-${item.mancode}`;
+      // Step 1: Get Euro Retail from database map (global: brand + mancode only)
+      const euroRetailKey = `${brand}-${item.mancode}`;
       const euroRetail = euroRetailMap[euroRetailKey];
       if (euroRetail === undefined) {
         errors.push({
           row: rowNum,
-          message: `Price not found in Euro Retail database for Country: "${country}", Brand: "${brand}", Mancode: "${item.mancode}"`,
+          message: `Price not found in Euro Retail database for Brand: "${brand}", Mancode: "${item.mancode}"`,
         });
         return;
       }
@@ -151,15 +151,16 @@ export async function processPricingForItems(
 
 /**
  * Build Euro Retail map from database
- * Maps country-brand-mancode -> euroRetail for fast O(1) lookup
+ * Maps brand-mancode -> euroRetail for fast O(1) lookup
+ * Euro Retail is a global value — it does not vary by country.
  */
 export function buildEuroRetailMap(
-  euroRetailRecords: Array<{ country: string; brandCode: string; mancode: string; euroRetail: number }>
+  euroRetailRecords: Array<{ brandCode: string; mancode: string; euroRetail: number }>
 ): EuroRetailMap {
   const map: EuroRetailMap = {};
 
   for (const record of euroRetailRecords) {
-    const key = `${record.country}-${record.brandCode}-${record.mancode}`;
+    const key = `${record.brandCode}-${record.mancode}`;
     map[key] = record.euroRetail;
   }
 

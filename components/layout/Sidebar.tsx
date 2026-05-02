@@ -14,6 +14,7 @@ import {
   CreditCard,
   Grid3X3,
   CalendarRange,
+  ClipboardCheck,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -51,19 +52,25 @@ const navItems: NavItem[] = [
     activeIcon: 'text-emerald-600', hoverBg: 'hover:bg-emerald-50', hoverText: 'hover:text-emerald-700' 
   },
   { 
-    href: '#', label: 'Seasonality Reference', icon: CalendarRange, 
+    href: '/seasonality-validation', label: 'Seasonality Validation', icon: CalendarRange, 
     color: 'text-amber-500', activeBg: 'bg-amber-50', activeText: 'text-amber-700', 
     activeIcon: 'text-amber-600', hoverBg: 'hover:bg-amber-50', hoverText: 'hover:text-amber-700' 
   },
+  { 
+    href: '/monthly-closing', label: 'Monthly Closing Validation', icon: ClipboardCheck, 
+    color: 'text-teal-500', activeBg: 'bg-teal-50', activeText: 'text-teal-700', 
+    activeIcon: 'text-teal-600', hoverBg: 'hover:bg-teal-50', hoverText: 'hover:text-teal-700' 
+  },
   {
     href: '/admin',
-    label: 'Pricing Reference',
+    label: 'Reference Databases',
     icon: Database,
     color: 'text-purple-500', activeBg: 'bg-purple-50', activeText: 'text-purple-700', 
     activeIcon: 'text-purple-600', hoverBg: 'hover:bg-purple-50', hoverText: 'hover:text-purple-700',
     children: [
       { href: '/admin/euro-retail', label: 'Euro Retail', icon: CreditCard },
       { href: '/admin/price-matrix', label: 'Price Matrix', icon: Grid3X3 },
+      { href: '/admin/seasonality', label: 'Seasonality Master', icon: CalendarRange },
     ],
   },
 ];
