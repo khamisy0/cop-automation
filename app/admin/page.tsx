@@ -22,6 +22,7 @@ const badgeStyles: Record<ColorAccent, string> = {
   amber: 'bg-amber-50 text-amber-600',
   purple: 'bg-purple-50 text-purple-600',
   teal: 'bg-teal-50 text-teal-600',
+  rose: 'bg-rose-50 text-rose-600',
   gray: 'bg-gray-50 text-gray-500',
 };
 
