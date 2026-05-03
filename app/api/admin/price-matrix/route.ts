@@ -88,3 +88,16 @@ export async function POST(request: Request) {
     );
   }
 }
+
+export async function DELETE() {
+  try {
+    await prisma.priceMatrix.deleteMany({});
+    return NextResponse.json({ message: "All entries deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting all entries:", error);
+    return NextResponse.json(
+      { error: "Failed to delete all entries" },
+      { status: 500 }
+    );
+  }
+}

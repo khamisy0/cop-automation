@@ -34,6 +34,7 @@ export default function PriceMatrixAdmin() {
     expiryDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
   });
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
+  const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
 
   useEffect(() => { fetchEntries(); }, []);
 
@@ -66,6 +67,21 @@ export default function PriceMatrixAdmin() {
   async function handleDelete(id: number) {
     try { const r = await fetch(`/api/admin/price-matrix/${id}`, { method: "DELETE" }); if (!r.ok) throw new Error("Failed to delete"); setSuccessMessage("Entry deleted"); setDeleteConfirm(null); setTimeout(() => setSuccessMessage(null), 3000); fetchEntries(); }
     catch (err) { setError(err instanceof Error ? err.message : "An error occurred"); }
+  }
+
+  async function handleDeleteAll() {
+    try {
+      setLoading(true);
+      const r = await fetch("/api/admin/price-matrix", { method: "DELETE" });
+      if (!r.ok) throw new Error("Failed to delete all entries");
+      setSuccessMessage("All entries deleted successfully");
+      setShowDeleteAllConfirm(false);
+      setTimeout(() => setSuccessMessage(null), 3000);
+      fetchEntries();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An error occurred");
+      setLoading(false);
+    }
   }
 
   async function handleDownload() {
@@ -148,6 +164,15 @@ export default function PriceMatrixAdmin() {
             <p className="text-sm text-gray-500">Manage derived pricing rules across regions.</p>
           </div>
           <div className="flex gap-2">
+            {showDeleteAllConfirm ? (
+              <div className="flex items-center gap-2 bg-red-50 px-3 py-1.5 rounded-lg border border-red-100">
+                <span className="text-sm font-medium text-red-700">Delete all entries?</span>
+                <button onClick={handleDeleteAll} className="px-2 py-1 bg-red-600 text-white rounded text-xs font-medium hover:bg-red-700 transition">Yes, delete</button>
+                <button onClick={() => setShowDeleteAllConfirm(false)} className="px-2 py-1 bg-white text-gray-600 border border-gray-200 rounded text-xs font-medium hover:bg-gray-50 transition">Cancel</button>
+              </div>
+            ) : (
+              <button onClick={() => setShowDeleteAllConfirm(true)} className="flex items-center gap-2 px-3 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition duration-200 text-sm font-medium"><Trash2 className="h-4 w-4" /> Delete All</button>
+            )}
             <button onClick={() => { setShowForm(!showForm); setEditingId(null); }} className="flex items-center gap-2 px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition duration-200 text-sm font-medium shadow-sm"><Plus className="h-4 w-4" /> Add Entry</button>
             <button onClick={handleDownload} className="flex items-center gap-2 px-3 py-2 bg-gray-100 text-gray-900 rounded-lg hover:bg-gray-200 transition duration-200 text-sm font-medium"><Download className="h-4 w-4" /> Download</button>
             <label className={`flex items-center gap-2 px-3 py-2 bg-gray-100 text-gray-900 rounded-lg transition duration-200 text-sm font-medium ${isUploading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-200 cursor-pointer'}`}>
