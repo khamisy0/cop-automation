@@ -11,6 +11,7 @@ import {
   TrendingUp,
   Layers,
   ClipboardCheck,
+  FileText,
 } from 'lucide-react';
 import StatCard, { type ColorAccent } from '@/components/ui/StatCard';
 
@@ -56,6 +57,16 @@ export default function Dashboard() {
       color: 'teal' as ColorAccent,
       features: ['Closing data validation', 'Discrepancy detection', 'Pre-submission checks'],
     },
+    {
+      id: 'lpos-automation',
+      title: 'LPOs Automation',
+      description: 'Automate Local Purchase Orders processing and validation',
+      icon: FileText,
+      href: '/lpos-automation',
+      status: 'active' as const,
+      color: 'rose' as ColorAccent,
+      features: ['Automated LPO processing', 'Validation rules', 'Streamlined workflows'],
+    },
   ];
 
   const badgeStyles: Record<ColorAccent, string> = {
@@ -65,6 +76,7 @@ export default function Dashboard() {
     amber: 'bg-amber-50 text-amber-600',
     purple: 'bg-purple-50 text-purple-600',
     teal: 'bg-teal-50 text-teal-600',
+    rose: 'bg-rose-50 text-rose-600',
     gray: 'bg-gray-50 text-gray-500',
   };
 
@@ -72,7 +84,7 @@ export default function Dashboard() {
     <div className="space-y-6 animate-fade-in">
       {/* Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
-        <StatCard title="Active Modules" value="4" icon={Layers} trend="Fully operational" color="indigo" />
+        <StatCard title="Active Modules" value="5" icon={Layers} trend="Fully operational" color="indigo" />
         <StatCard title="Files Processed" value="—" icon={FileSpreadsheet} color="blue" />
         <StatCard title="COP Batches" value="—" icon={FolderOpen} color="emerald" />
         <StatCard title="Requests Processed" value="—" icon={TrendingUp} color="purple" />

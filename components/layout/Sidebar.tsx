@@ -15,6 +15,7 @@ import {
   Grid3X3,
   CalendarRange,
   ClipboardCheck,
+  FileText,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -60,6 +61,11 @@ const navItems: NavItem[] = [
     href: '/monthly-closing', label: 'Monthly Closing Validation', icon: ClipboardCheck, 
     color: 'text-teal-500', activeBg: 'bg-teal-50', activeText: 'text-teal-700', 
     activeIcon: 'text-teal-600', hoverBg: 'hover:bg-teal-50', hoverText: 'hover:text-teal-700' 
+  },
+  { 
+    href: '/lpos-automation', label: 'LPOs Automation', icon: FileText, 
+    color: 'text-rose-500', activeBg: 'bg-rose-50', activeText: 'text-rose-700', 
+    activeIcon: 'text-rose-600', hoverBg: 'hover:bg-rose-50', hoverText: 'hover:text-rose-700' 
   },
   {
     href: '/admin',
