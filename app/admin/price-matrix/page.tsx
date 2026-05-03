@@ -94,29 +94,55 @@ export default function PriceMatrixAdmin() {
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]; if (!file) return;
     setIsUploading(true);
+    setSuccessMessage("Parsing Excel file...");
+    setError(null);
     try {
       const data = await file.arrayBuffer(); const workbook = XLSX.read(data); const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const jsonData = XLSX.utils.sheet_to_json(sheet) as Array<any>;
       if (jsonData.length === 0) { setError("Excel file is empty"); setIsUploading(false); return; }
-      const r = await fetch("/api/admin/price-matrix/import", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ entries: jsonData }) });
-      const result = await r.json();
-      if (!r.ok) { let msg = result.message || result.error || "Import failed"; if (result.details) msg += `\n\nTotal rows: ${result.details.totalRows}, Columns found: ${result.details.columnsFound}`; if (result.errors?.length) { msg += "\n\n" + result.errors.slice(0, 5).join("\n"); if (result.errors.length > 5) msg += `\n...and ${result.errors.length - 5} more`; } setError(msg); setIsUploading(false); return; }
-      if (result.created === 0 && result.updated === 0) { 
-        let errs = "No entries were imported. " + (result.skipped > 0 ? `${result.skipped} rows skipped.` : "");
-        if (result.errors?.length) errs += "\n\n" + result.errors.slice(0, 5).join("\n");
+      
+      const CHUNK_SIZE = 250;
+      const totalChunks = Math.ceil(jsonData.length / CHUNK_SIZE);
+      let totalCreated = 0;
+      let totalUpdated = 0;
+      let totalSkipped = 0;
+      let allErrors: string[] = [];
+      
+      for (let i = 0; i < jsonData.length; i += CHUNK_SIZE) {
+        const currentChunk = Math.floor(i / CHUNK_SIZE) + 1;
+        setSuccessMessage(`Uploading batch ${currentChunk} of ${totalChunks}... (${Math.min(i + CHUNK_SIZE, jsonData.length)} / ${jsonData.length} rows)`);
+        
+        const chunk = jsonData.slice(i, i + CHUNK_SIZE);
+        const r = await fetch("/api/admin/price-matrix/import", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ entries: chunk }) });
+        
+        let result;
+        try { result = await r.json(); } catch(e) { throw new Error(`Server error on batch ${currentChunk}. Ensure database is running properly.`); }
+        
+        if (!r.ok) { let msg = result.message || result.error || "Import failed"; if (result.details) msg += `\n\nTotal rows: ${result.details.totalRows}`; if (result.errors?.length) { msg += "\n\n" + result.errors.slice(0, 5).join("\n"); } throw new Error(msg); }
+        
+        totalCreated += (result.created || 0);
+        totalUpdated += (result.updated || 0);
+        totalSkipped += (result.skipped || 0);
+        if (result.errors?.length) allErrors = [...allErrors, ...result.errors];
+      }
+      
+      if (totalCreated === 0 && totalUpdated === 0) { 
+        let errs = "No entries were imported. " + (totalSkipped > 0 ? `${totalSkipped} rows skipped.` : "");
+        if (allErrors.length) errs += "\n\n" + allErrors.slice(0, 5).join("\n");
         setError(errs); setIsUploading(false); return; 
       }
-      if (result.skipped > 0) {
-        let warnMsg = `Imported ${result.created} created, ${result.updated} updated. Skipped ${result.skipped} rows.`;
-        if (result.errors?.length) warnMsg += "\n\n" + result.errors.slice(0, 5).join("\n");
+      if (totalSkipped > 0) {
+        let warnMsg = `Imported ${totalCreated} created, ${totalUpdated} updated. Skipped ${totalSkipped} rows.`;
+        if (allErrors.length) warnMsg += "\n\n" + allErrors.slice(0, 5).join("\n");
         setError(warnMsg);
-        setSuccessMessage(`Partially imported (${result.created} created).`);
+        setSuccessMessage(`Partially imported (${totalCreated} created).`);
       } else {
-        setSuccessMessage(`✓ Imported: ${result.created} created, ${result.updated} updated`);
+        setSuccessMessage(`✓ Imported: ${totalCreated} created, ${totalUpdated} updated`);
       }
       setTimeout(() => setSuccessMessage(null), 4000); fetchEntries();
     } catch (err) { 
       setError(err instanceof Error ? err.message : "Failed to import file"); 
+      setSuccessMessage(null);
     } finally {
       setIsUploading(false);
       e.target.value = "";
