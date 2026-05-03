@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Upload, FileText, CheckCircle, AlertTriangle, Download, Loader2, Globe } from "lucide-react";
 import * as XLSX from "xlsx";
 import { ValidationEngineResponse } from "@/modules/seasonality/types";
+import { COUNTRY_CODES } from "@/lib/constants";
 
 export default function SeasonalityValidation() {
   const [activeTab, setActiveTab] = useState<"upload" | "paste">("upload");
@@ -176,13 +177,16 @@ export default function SeasonalityValidation() {
                  <p className="text-xs text-gray-500">The country context to validate against</p>
                </div>
             </div>
-            <input 
-              type="text" 
+            <select
               value={targetCountry}
               onChange={(e) => setTargetCountry(e.target.value)}
-              placeholder="e.g. UAE, KSA, GLOBAL"
               className="w-full sm:w-64 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm font-medium"
-            />
+            >
+              <option value="">GLOBAL (No specific country)</option>
+              {COUNTRY_CODES.map((c) => (
+                <option key={c.code} value={c.name}>{c.name} - {c.code}</option>
+              ))}
+            </select>
           </div>
 
           <div className="flex border-b border-gray-200">

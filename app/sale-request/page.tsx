@@ -7,6 +7,7 @@ import PreviewTable from '@/components/shared/PreviewTable';
 import FileUploadCard from '@/components/ui/FileUploadCard';
 import { ProcessedItem } from '@/modules/sale-request/types';
 import { ProcessingError } from '@/modules/cop/types';
+import { COUNTRY_CODES } from '@/lib/constants';
 
 export default function SaleRequestPage() {
   const [itemListFile, setItemListFile] = useState<File | null>(null);
@@ -25,15 +26,6 @@ export default function SaleRequestPage() {
     { label: 'TEZ - 57', value: '57' },
   ];
   
-  const countries = [
-    { label: 'UAE - 02', value: 'UAE' }, // Note: Assuming country codes in DB are 'UAE', 'KSA', etc. based on Euro Retail lookup
-    { label: 'KSA - 10', value: 'KSA' },
-    { label: 'KW - 03', value: 'KW' },
-    { label: 'QA - 06', value: 'QA' },
-    { label: 'JO', value: 'JO' },
-    { label: 'BAH - 04', value: 'BAH' },
-    { label: 'LEB - 01', value: 'LEB' },
-  ];
 
   const handleProcess = async () => {
     setErrors([]); setSuccessMessage(''); setProcessedItems([]);
@@ -111,7 +103,7 @@ export default function SaleRequestPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Country</label>
                 <select value={country} onChange={(e) => setCountry(e.target.value)} className={inputClass}>
                   <option value="">Select Country</option>
-                  {countries.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                  {COUNTRY_CODES.map((c) => <option key={c.code} value={c.name}>{c.name} - {c.code}</option>)}
                 </select>
               </div>
             </div>

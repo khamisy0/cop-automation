@@ -10,6 +10,7 @@ import {
   ProcessingError,
   FormInputs,
 } from '@/modules/cop/types';
+import { COUNTRY_CODES, countryNameToCodeMap } from '@/lib/constants';
 
 export default function COPPage() {
   const [brandManagerFile, setBrandManagerFile] = useState<File | null>(null);
@@ -24,13 +25,12 @@ export default function COPPage() {
   });
 
   const brandSupplierMap: Record<string, string> = { '56': '5601', 'B6': 'B601' };
-  const countryCodeMap: Record<string, string> = { Lebanon: '01', UAE: '02', Kuwait: '03', Bahrain: '04', Qatar: '06' };
 
   const handleFormChange = (field: keyof FormInputs, value: string) => {
     setFormInputs((prev) => {
       const updated = { ...prev, [field]: value };
       if (field === 'brand') updated.supplier = brandSupplierMap[value] || '';
-      if (field === 'countryCode') updated.countryCode = countryCodeMap[value] || '';
+      if (field === 'countryCode') updated.countryCode = countryNameToCodeMap[value] || '';
       return updated;
     });
   };
@@ -99,13 +99,13 @@ export default function COPPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Country *</label>
-              <select value={Object.keys(countryCodeMap).find((c) => countryCodeMap[c] === formInputs.countryCode) || ''} onChange={(e) => handleFormChange('countryCode', e.target.value)} disabled={isProcessing} className={inputClass}>
+              <select value={Object.keys(countryNameToCodeMap).find((c) => countryNameToCodeMap[c] === formInputs.countryCode) || ''} onChange={(e) => handleFormChange('countryCode', e.target.value)} disabled={isProcessing} className={inputClass}>
                 <option value="">Select a country</option>
-                <option value="Lebanon">Lebanon - 01</option>
-                <option value="UAE">UAE - 02</option>
-                <option value="Kuwait">Kuwait - 03</option>
-                <option value="Bahrain">Bahrain - 04</option>
-                <option value="Qatar">Qatar - 06</option>
+                {COUNTRY_CODES.map((country) => (
+                  <option key={country.code} value={country.name}>
+                    {country.name} - {country.code}
+                  </option>
+                ))}
               </select>
             </div>
             <div>
