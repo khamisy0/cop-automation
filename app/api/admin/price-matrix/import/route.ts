@@ -155,57 +155,57 @@ async function processBatch(
     });
   }
 
-  // Process valid entries in a database transaction
+  // Process valid entries efficiently
   if (validEntries.length > 0) {
-    await prisma.$transaction(async (tx) => {
-      for (const entry of validEntries) {
-        try {
-          const existing = await tx.priceMatrix.findFirst({
-            where: {
-              country: entry.country,
-              brandCode: entry.brandCode,
-              season: entry.season,
-              supplier: entry.supplier,
-              foreignRetailFOB: entry.foreignRetailFOB,
-            },
-          });
+    try {
+      const orConditions = validEntries.map(e => ({
+        country: e.country,
+        brandCode: e.brandCode,
+        season: e.season,
+        supplier: e.supplier,
+        foreignRetailFOB: e.foreignRetailFOB
+      }));
 
-          if (existing) {
-            await tx.priceMatrix.update({
-              where: { id: existing.id },
-              data: {
-                section: entry.section,
-                foreignRetailFOB: entry.foreignRetailFOB,
-                unitRetail: entry.unitRetail,
-                effectiveDate: entry.effectiveDate,
-                expiryDate: entry.expiryDate,
-              },
-            });
-            results.updated++;
-          } else {
-            await tx.priceMatrix.create({
-              data: {
-                country: entry.country,
-                brandCode: entry.brandCode,
-                season: entry.season,
-                supplier: entry.supplier,
-                section: entry.section,
-                foreignRetailFOB: entry.foreignRetailFOB,
-                unitRetail: entry.unitRetail,
-                effectiveDate: entry.effectiveDate,
-                expiryDate: entry.expiryDate,
-              },
-            });
-            results.created++;
-          }
-        } catch (err) {
-          results.errors.push(
-            `Row ${entry.rowIndex + 1} (${entry.country}/${entry.brandCode}): ${err instanceof Error ? err.message : "Unknown error"}`
-          );
-          results.skipped++;
+      const existingRecords = await prisma.priceMatrix.findMany({
+        where: { OR: orConditions },
+        select: { id: true, country: true, brandCode: true, season: true, supplier: true, foreignRetailFOB: true }
+      });
+
+      const existingMap = new Map(
+        existingRecords.map(r => [`${r.country}-${r.brandCode}-${r.season}-${r.supplier}-${r.foreignRetailFOB}`, r.id])
+      );
+
+      const toCreate = [];
+      const toUpdate: {id: number, data: any}[] = [];
+
+      for (const entry of validEntries) {
+        const key = `${entry.country}-${entry.brandCode}-${entry.season}-${entry.supplier}-${entry.foreignRetailFOB}`;
+        if (existingMap.has(key)) {
+          toUpdate.push({ id: existingMap.get(key)!, data: entry });
+        } else {
+          toCreate.push(entry);
         }
       }
-    });
+
+      if (toCreate.length > 0) {
+        // Exclude rowIndex before insertion
+        const createData = toCreate.map(({ rowIndex, ...data }) => data);
+        await prisma.priceMatrix.createMany({ data: createData, skipDuplicates: true });
+        results.created += toCreate.length;
+      }
+
+      if (toUpdate.length > 0) {
+        const updateOps = toUpdate.map(u => {
+          const { rowIndex, ...dataToUpdate } = u.data;
+          return prisma.priceMatrix.update({ where: { id: u.id }, data: dataToUpdate });
+        });
+        await prisma.$transaction(updateOps);
+        results.updated += toUpdate.length;
+      }
+    } catch (err) {
+      console.error("Bulk DB Error:", err);
+      results.errors.push(`Database error: ${err instanceof Error ? err.message : "Unknown error"}`);
+    }
   }
 
   return results;

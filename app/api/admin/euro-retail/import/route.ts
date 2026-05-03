@@ -95,10 +95,11 @@ export async function POST(request: Request) {
       return null;
     };
 
+    const validEntries = [];
+
     for (let rowIndex = 0; rowIndex < entries.length; rowIndex++) {
       const entry = entries[rowIndex];
       
-      // Extract with multiple possible column name variations safely
       const batchNumber = extractField(entry, ["Batch Number", "batchNumber", "Batch number"]);
       const lineNumber = extractField(entry, ["Line Number", "lineNumber", "Line number"]);
       const brandCode = extractField(entry, ["Brand Code", "brandCode", "Brand code"]);
@@ -110,11 +111,8 @@ export async function POST(request: Request) {
       const euroRetailStr = extractField(entry, ["Euro Retail", "euroRetail", "Euro retail"]);
       const effectiveDateInput = getExactField(entry, ["Effective Date", "effectiveDate"]);
 
-      // Validate required fields
       if (!batchNumber || !lineNumber || !brandCode || !mancode) {
-        results.errors.push(
-          `Row ${rowIndex + 1}: Missing required fields (Batch: "${batchNumber}", Line: "${lineNumber}", Brand: "${brandCode}", Mancode: "${mancode}")`
-        );
+        results.errors.push(`Row ${rowIndex + 1}: Missing required fields (Batch: "${batchNumber}", Line: "${lineNumber}")`);
         results.skipped++;
         continue;
       }
@@ -125,62 +123,59 @@ export async function POST(request: Request) {
         continue;
       }
 
-      // Parse date
       const effectiveDate = parseDate(effectiveDateInput);
       if (!effectiveDate) {
-        results.errors.push(
-          `Row with ${batchNumber}/${lineNumber}: Invalid effective date format`
-        );
+        results.errors.push(`Row with ${batchNumber}/${lineNumber}: Invalid effective date format`);
         results.skipped++;
         continue;
       }
 
+      validEntries.push({
+        batchNumber, lineNumber, brandCode, brandDescription: brandDescription || "", mancode, colorSize: colorSize || "",
+        effectiveDate, importFileColor, importFileSizeList, euroRetail: euroRetailNum,
+      });
+    }
+
+    if (validEntries.length > 0) {
       try {
-        const existing = await prisma.euroRetail.findFirst({
+        const batchNumbers = validEntries.map(e => e.batchNumber);
+        const lineNumbers = validEntries.map(e => e.lineNumber);
+        
+        const existingRecords = await prisma.euroRetail.findMany({
           where: {
-            batchNumber,
-            lineNumber,
+            batchNumber: { in: batchNumbers },
+            lineNumber: { in: lineNumbers }
           },
+          select: { id: true, batchNumber: true, lineNumber: true }
         });
 
-        if (existing) {
-          await prisma.euroRetail.update({
-            where: { id: existing.id },
-            data: {
-              batchNumber,
-              lineNumber,
-              brandCode,
-              brandDescription,
-              mancode,
-              colorSize,
-              effectiveDate,
-              importFileColor,
-              importFileSizeList,
-              euroRetail: euroRetailNum,
-            },
-          });
-          results.updated++;
-        } else {
-          await prisma.euroRetail.create({
-            data: {
-              batchNumber,
-              lineNumber,
-              brandCode,
-              brandDescription,
-              mancode,
-              colorSize,
-              effectiveDate,
-              importFileColor,
-              importFileSizeList,
-              euroRetail: euroRetailNum,
-            },
-          });
-          results.created++;
+        const existingMap = new Map(existingRecords.map(r => [`${r.batchNumber}-${r.lineNumber}`, r.id]));
+
+        const toCreate = [];
+        const toUpdate: {id: number, data: any}[] = [];
+
+        for (const entry of validEntries) {
+          const key = `${entry.batchNumber}-${entry.lineNumber}`;
+          if (existingMap.has(key)) {
+            toUpdate.push({ id: existingMap.get(key)!, data: entry });
+          } else {
+            toCreate.push(entry);
+          }
+        }
+
+        if (toCreate.length > 0) {
+          await prisma.euroRetail.createMany({ data: toCreate, skipDuplicates: true });
+          results.created += toCreate.length;
+        }
+
+        if (toUpdate.length > 0) {
+          const updateOps = toUpdate.map(u => prisma.euroRetail.update({ where: { id: u.id }, data: u.data }));
+          await prisma.$transaction(updateOps);
+          results.updated += toUpdate.length;
         }
       } catch (err) {
-        console.error("Import error:", err);
-        results.errors.push(`Row ${batchNumber}/${lineNumber}: ${err instanceof Error ? err.message : "Unknown error"}`);
-        results.skipped++;
+        console.error("Bulk DB Error:", err);
+        results.errors.push(`Database error: ${err instanceof Error ? err.message : "Unknown error"}`);
       }
     }
 
