@@ -9,6 +9,7 @@ import {
   validateMissingKeys,
 } from '@/modules/cop/validator';
 import { ProcessingResult, ProcessingError } from '@/modules/cop/types';
+import { BRANDS } from '@/lib/constants';
 
 /**
  * POST /api/cop
@@ -73,6 +74,10 @@ export async function POST(request: NextRequest): Promise<NextResponse<Processin
       );
     }
 
+    // Resolve join key from brand config
+    const brandConfig = BRANDS.find((b) => b.code === formInputs.brand);
+    const joinKey = brandConfig?.joinKey ?? 'mancode+color';
+
     // Validate form inputs
     const formValidation = validateFormInputs(formInputs);
     if (!formValidation.isValid) {
@@ -131,9 +136,11 @@ export async function POST(request: NextRequest): Promise<NextResponse<Processin
     // Check for missing keys
     console.log('Checking for missing keys...');
     const brandManagerKeys = new Set(
-      brandManagerData.map((row) => `${row.mancode}|${row.color}`)
+      brandManagerData.map((row) => joinKey === 'mancode' ? row.mancode : `${row.mancode}|${row.color}`)
     );
-    const rhmKeys = new Set(rhmData.map((row) => `${row.mancode}|${row.color}`));
+    const rhmKeys = new Set(
+      rhmData.map((row) => joinKey === 'mancode' ? row.mancode : `${row.mancode}|${row.color}`)
+    );
 
     const mergeValidation = validateMissingKeys(brandManagerKeys, rhmKeys);
     if (!mergeValidation.isValid) {
@@ -146,7 +153,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<Processin
 
     // Merge data
     console.log('Merging data...');
-    const { mergedData, errors: mergeErrors } = mergeAndCalculate(brandManagerData, rhmData);
+    const { mergedData, errors: mergeErrors } = mergeAndCalculate(brandManagerData, rhmData, joinKey);
 
     if (mergeErrors.length > 0) {
       errors.push(...mergeErrors.slice(0, 10)); // Limit errors shown to user

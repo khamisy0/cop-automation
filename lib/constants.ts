@@ -18,3 +18,11 @@ export const countryCodeToNameMap: Record<string, string> = COUNTRY_CODES.reduce
   acc[curr.code] = curr.name;
   return acc;
 }, {} as Record<string, string>);
+
+export type JoinKey = 'mancode+color' | 'mancode';
+
+export const BRANDS: { code: string; name: string; supplier: string; joinKey: JoinKey }[] = [
+  { code: '56', name: 'Intimissimi', supplier: '5601', joinKey: 'mancode+color' },
+  { code: 'B6', name: 'IUMAN UOMO', supplier: 'B601', joinKey: 'mancode+color' },
+  { code: '37', name: 'Punt Roma', supplier: '3701', joinKey: 'mancode' },
+];

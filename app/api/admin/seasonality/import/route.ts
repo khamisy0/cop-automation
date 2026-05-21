@@ -6,13 +6,18 @@ import { prisma } from "@/lib/prisma";
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { entries, replaceAll } = body;
+    const { entries, replaceAll, brandCodes } = body;
+    // brandCodes is an array — allows uploading one sheet for multiple brands (e.g. INT + UOMO)
+    const brands: string[] = Array.isArray(brandCodes)
+      ? brandCodes.map((b: string) => b.trim()).filter(Boolean)
+      : [];
 
     if (!Array.isArray(entries) || entries.length === 0) {
-      return NextResponse.json(
-        { error: "No entries to import" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "No entries to import" }, { status: 400 });
+    }
+
+    if (brands.length === 0) {
+      return NextResponse.json({ error: "No brand selected for import" }, { status: 400 });
     }
 
     const results = {
@@ -21,9 +26,9 @@ export async function POST(request: Request) {
       errors: [] as string[],
     };
 
-    // If indicated, wipe the table first to set new source of truth
+    // Wipe records for all selected brands before inserting
     if (replaceAll) {
-      await prisma.seasonalityReference.deleteMany();
+      await prisma.seasonalityReference.deleteMany({ where: { brandCode: { in: brands } } });
     }
 
     const extractField = (entry: any, possibleKeywords: string[], excludeKeywords: string[] = []): string => {
@@ -77,15 +82,19 @@ export async function POST(request: Request) {
         continue;
       }
 
-      dataToInsert.push({
-        country,
-        priority,
-        fromDate1,
-        mancode,
-        colorCode,
-        season,
-        fromDate2,
-      });
+      // Insert one record per selected brand
+      for (const brandCode of brands) {
+        dataToInsert.push({
+          brandCode,
+          country,
+          priority,
+          fromDate1,
+          mancode,
+          colorCode,
+          season,
+          fromDate2,
+        });
+      }
     }
 
     if (dataToInsert.length > 0) {

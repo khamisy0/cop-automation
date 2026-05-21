@@ -5,6 +5,7 @@ import { Download, Loader2, CheckCircle2, Tag } from 'lucide-react';
 import ErrorAlert from '@/components/shared/ErrorAlert';
 import PreviewTable from '@/components/shared/PreviewTable';
 import FileUploadCard from '@/components/ui/FileUploadCard';
+import SearchableSelect from '@/components/ui/SearchableSelect';
 import { ProcessedItem } from '@/modules/sale-request/types';
 import { ProcessingError } from '@/modules/cop/types';
 import { COUNTRY_CODES } from '@/lib/constants';
@@ -94,17 +95,21 @@ export default function SaleRequestPage() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Brand</label>
-                <select value={brand} onChange={(e) => setBrand(e.target.value)} className={inputClass}>
-                  <option value="">Select Brand</option>
-                  {brands.map((b) => <option key={b.value} value={b.value}>{b.label}</option>)}
-                </select>
+                <SearchableSelect
+                  options={brands.map((b) => ({ value: b.value, label: b.label }))}
+                  value={brand}
+                  onChange={setBrand}
+                  placeholder="Select Brand"
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Country</label>
-                <select value={country} onChange={(e) => setCountry(e.target.value)} className={inputClass}>
-                  <option value="">Select Country</option>
-                  {COUNTRY_CODES.map((c) => <option key={c.code} value={c.name}>{c.name} - {c.code}</option>)}
-                </select>
+                <SearchableSelect
+                  options={COUNTRY_CODES.map((c) => ({ value: c.name, label: `${c.name} - ${c.code}` }))}
+                  value={country}
+                  onChange={setCountry}
+                  placeholder="Select Country"
+                />
               </div>
             </div>
           </div>

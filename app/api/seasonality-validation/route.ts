@@ -4,7 +4,7 @@ import { ValidationInputItem } from "@/modules/seasonality/types";
 
 export async function POST(request: Request) {
   try {
-    const { items, targetCountry } = await request.json();
+    const { items, targetCountry, targetBrand } = await request.json();
 
     if (!Array.isArray(items) || items.length === 0) {
       return NextResponse.json(
@@ -32,12 +32,14 @@ export async function POST(request: Request) {
       const mancode = extractField(item, ["articlecode", "mancode"]);
       const colorCode = extractField(item, ["colorcode", "color"]);
       const country = targetCountry ? String(targetCountry).trim() : undefined;
+      const brandCode = targetBrand ? String(targetBrand).trim() : "";
 
       return {
         id: `row-${index}`,
         mancode,
         colorCode,
-        country
+        brandCode,
+        country,
       };
     }).filter(i => i.mancode && i.colorCode); 
 

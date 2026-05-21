@@ -1,8 +1,9 @@
 export interface ValidationInputItem {
-  id: string; // Internal temporary ID array map
+  id: string;
   mancode: string;
   colorCode: string;
-  country?: string; // Optional because fallback logic exists
+  brandCode: string;
+  country?: string;
 }
 
 export type ValidationStatus = "Found" | "Not Found";

@@ -1,12 +1,14 @@
 import { BrandManagerRow, RHMRow, MergedRow, ProcessingError } from './types';
+import { JoinKey } from '@/lib/constants';
 
 /**
  * Merge RHM data with Brand Manager data and perform calculations
- * Uses LEFT JOIN on Mancode + Color
+ * joinKey controls whether the lookup uses mancode+color or mancode only
  */
 export function mergeAndCalculate(
   brandManagerData: BrandManagerRow[],
-  rhmData: RHMRow[]
+  rhmData: RHMRow[],
+  joinKey: JoinKey = 'mancode+color'
 ): {
   mergedData: MergedRow[];
   errors: ProcessingError[];
@@ -17,7 +19,7 @@ export function mergeAndCalculate(
   // Create lookup map for Brand Manager data
   const brandManagerMap = new Map<string, BrandManagerRow>();
   brandManagerData.forEach((row) => {
-    const key = `${row.mancode}|${row.color}`;
+    const key = joinKey === 'mancode' ? row.mancode : `${row.mancode}|${row.color}`;
     brandManagerMap.set(key, row);
   });
 
@@ -32,7 +34,7 @@ export function mergeAndCalculate(
       return;
     }
 
-    const key = `${rhmRow.mancode}|${rhmRow.color}`;
+    const key = joinKey === 'mancode' ? rhmRow.mancode : `${rhmRow.mancode}|${rhmRow.color}`;
     const brandManagerRow = brandManagerMap.get(key);
 
     if (!brandManagerRow) {

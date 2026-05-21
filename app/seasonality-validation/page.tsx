@@ -5,6 +5,14 @@ import { Upload, FileText, CheckCircle, AlertTriangle, Download, Loader2, Globe 
 import * as XLSX from "xlsx";
 import { ValidationEngineResponse } from "@/modules/seasonality/types";
 import { COUNTRY_CODES } from "@/lib/constants";
+import SearchableSelect from "@/components/ui/SearchableSelect";
+
+const SEASONALITY_BRANDS = [
+  { code: "56", name: "Intimissimi" },
+  { code: "B6", name: "IUMAN UOMO" },
+  { code: "55", name: "Calzedonia" },
+  { code: "57", name: "Tezenis" },
+];
 
 export default function SeasonalityValidation() {
   const [activeTab, setActiveTab] = useState<"upload" | "paste">("upload");
@@ -12,7 +20,8 @@ export default function SeasonalityValidation() {
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<ValidationEngineResponse | null>(null);
   const [pasteData, setPasteData] = useState("");
-  const [targetCountry, setTargetCountry] = useState("UAE"); // Default but user can change
+  const [targetBrand, setTargetBrand] = useState("");
+  const [targetCountry, setTargetCountry] = useState("UAE");
 
   async function processData(data: any[]) {
     try {
@@ -23,7 +32,7 @@ export default function SeasonalityValidation() {
       const r = await fetch("/api/seasonality-validation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items: data, targetCountry }),
+        body: JSON.stringify({ items: data, targetCountry, targetBrand }),
       });
 
       const res = await r.json();
@@ -44,6 +53,11 @@ export default function SeasonalityValidation() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    if (!targetBrand) {
+      setError("Please select a brand before uploading.");
+      e.target.value = "";
+      return;
+    }
     if (!targetCountry.trim()) {
       setError("Please specify the target country before uploading.");
       e.target.value = "";
@@ -71,6 +85,10 @@ export default function SeasonalityValidation() {
   }
 
   function handlePasteSubmit() {
+    if (!targetBrand) {
+      setError("Please select a brand.");
+      return;
+    }
     if (!targetCountry.trim()) {
       setError("Please specify the target country.");
       return;
@@ -111,6 +129,7 @@ export default function SeasonalityValidation() {
       }
 
       processData(parsedData);
+
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to parse pasted data.");
     }
@@ -169,24 +188,33 @@ export default function SeasonalityValidation() {
       {!results && (
         <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
           
-          <div className="p-5 border-b border-gray-100 bg-gray-50/50 flex flex-col sm:flex-row items-start sm:items-center gap-4 justify-between">
-            <div className="flex items-center gap-3">
-               <div className="p-2 bg-indigo-100 rounded-lg"><Globe className="w-5 h-5 text-indigo-600" /></div>
-               <div>
-                 <h3 className="text-sm font-semibold text-gray-900">Market Country</h3>
-                 <p className="text-xs text-gray-500">The country context to validate against</p>
-               </div>
+          <div className="p-5 border-b border-gray-100 bg-gray-50/50 flex flex-col sm:flex-row items-start sm:items-center gap-4 flex-wrap">
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              <div className="p-2 bg-indigo-100 rounded-lg flex-shrink-0"><Globe className="w-5 h-5 text-indigo-600" /></div>
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900">Brand &amp; Market</h3>
+                <p className="text-xs text-gray-500">Select the brand and country to validate against</p>
+              </div>
             </div>
-            <select
-              value={targetCountry}
-              onChange={(e) => setTargetCountry(e.target.value)}
-              className="w-full sm:w-64 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm font-medium"
-            >
-              <option value="">GLOBAL (No specific country)</option>
-              {COUNTRY_CODES.map((c) => (
-                <option key={c.code} value={c.name}>{c.name} - {c.code}</option>
-              ))}
-            </select>
+            <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+              <SearchableSelect
+                options={SEASONALITY_BRANDS.map((b) => ({ value: b.code, label: `${b.name} - ${b.code}` }))}
+                value={targetBrand}
+                onChange={setTargetBrand}
+                placeholder="Select brand *"
+                className="w-full sm:w-52"
+              />
+              <SearchableSelect
+                options={[
+                  { value: '', label: 'GLOBAL (No specific country)' },
+                  ...COUNTRY_CODES.map((c) => ({ value: c.name, label: `${c.name} - ${c.code}` })),
+                ]}
+                value={targetCountry}
+                onChange={setTargetCountry}
+                placeholder="Select country"
+                className="w-full sm:w-52"
+              />
+            </div>
           </div>
 
           <div className="flex border-b border-gray-200">

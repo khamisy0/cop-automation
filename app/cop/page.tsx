@@ -5,12 +5,13 @@ import { Download, Loader2, CheckCircle2, FileSpreadsheet } from 'lucide-react';
 import FileUploadCard from '@/components/ui/FileUploadCard';
 import ErrorAlert from '@/components/shared/ErrorAlert';
 import PreviewTable from '@/components/shared/PreviewTable';
+import SearchableSelect from '@/components/ui/SearchableSelect';
 import {
   ProcessingResult,
   ProcessingError,
   FormInputs,
 } from '@/modules/cop/types';
-import { COUNTRY_CODES, countryNameToCodeMap } from '@/lib/constants';
+import { COUNTRY_CODES, countryNameToCodeMap, BRANDS } from '@/lib/constants';
 
 export default function COPPage() {
   const [brandManagerFile, setBrandManagerFile] = useState<File | null>(null);
@@ -24,12 +25,13 @@ export default function COPPage() {
     newEffectiveDate: '', compensated: 'No', transactionDescription: '',
   });
 
-  const brandSupplierMap: Record<string, string> = { '56': '5601', 'B6': 'B601' };
-
   const handleFormChange = (field: keyof FormInputs, value: string) => {
     setFormInputs((prev) => {
       const updated = { ...prev, [field]: value };
-      if (field === 'brand') updated.supplier = brandSupplierMap[value] || '';
+      if (field === 'brand') {
+        const brand = BRANDS.find((b) => b.code === value);
+        updated.supplier = brand?.supplier || '';
+      }
       if (field === 'countryCode') updated.countryCode = countryNameToCodeMap[value] || '';
       return updated;
     });
@@ -99,22 +101,23 @@ export default function COPPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Country *</label>
-              <select value={Object.keys(countryNameToCodeMap).find((c) => countryNameToCodeMap[c] === formInputs.countryCode) || ''} onChange={(e) => handleFormChange('countryCode', e.target.value)} disabled={isProcessing} className={inputClass}>
-                <option value="">Select a country</option>
-                {COUNTRY_CODES.map((country) => (
-                  <option key={country.code} value={country.name}>
-                    {country.name} - {country.code}
-                  </option>
-                ))}
-              </select>
+              <SearchableSelect
+                options={COUNTRY_CODES.map((c) => ({ value: c.name, label: `${c.name} - ${c.code}` }))}
+                value={Object.keys(countryNameToCodeMap).find((c) => countryNameToCodeMap[c] === formInputs.countryCode) || ''}
+                onChange={(v) => handleFormChange('countryCode', v)}
+                placeholder="Select a country"
+                disabled={isProcessing}
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Brand *</label>
-              <select value={formInputs.brand} onChange={(e) => handleFormChange('brand', e.target.value)} disabled={isProcessing} className={inputClass}>
-                <option value="">Select a brand</option>
-                <option value="56">Intimissimi - 56</option>
-                <option value="B6">IUMAN UOMO - B6</option>
-              </select>
+              <SearchableSelect
+                options={BRANDS.map((b) => ({ value: b.code, label: `${b.name} - ${b.code}` }))}
+                value={formInputs.brand}
+                onChange={(v) => handleFormChange('brand', v)}
+                placeholder="Select a brand"
+                disabled={isProcessing}
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Supplier</label>

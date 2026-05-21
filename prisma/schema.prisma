@@ -56,18 +56,18 @@ model PriceMatrix {
 // Centralized source of truth for variant collection active seasons
 model SeasonalityReference {
   id               Int      @id @default(autoincrement())
-  country          String   // Can be empty/null for generic entries
+  brandCode        String   @default("")  // e.g. "56", "B6", "55", "57"
+  country          String   // Can be empty for global entries
   priority         Int      // Lower number = higher priority
-  fromDate1        String?  // From (date or identifier)
+  fromDate1        String?
   mancode          String
   colorCode        String
   season           String   // Variant Collection Active Season
-  fromDate2        String?  // From (second field)
+  fromDate2        String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  // Composite indexes for fast lookups during validation
-  @@index([country, mancode, colorCode])
-  @@index([mancode, colorCode])
+  @@index([brandCode, mancode, colorCode])
+  @@index([brandCode, country, mancode, colorCode])
   @@map("seasonality_reference")
 }
