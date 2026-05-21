@@ -45,8 +45,6 @@ export default function SeasonalityAdmin() {
   });
 
   const [isUploading, setIsUploading] = useState(false);
-  // uploadBrands: one or more brands the file will be tagged to (INT+UOMO share a sheet)
-  const [uploadBrands, setUploadBrands] = useState<string[]>([]);
   const [replaceExisting, setReplaceExisting] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [isClearing, setIsClearing] = useState(false);
@@ -79,6 +77,7 @@ export default function SeasonalityAdmin() {
       return { ...tab, count: tabEntries.length, lastUpdated };
     }), [entries]);
 
+  // Derived from active tab — drives both the table filter and the upload target
   const activeTabCodes = BRAND_TABS.find((t) => t.id === activeTab)?.codes ?? [];
 
   const filteredEntries = useMemo(() =>
@@ -133,19 +132,11 @@ export default function SeasonalityAdmin() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (uploadBrands.length === 0) {
-      setError("Please select at least one brand before uploading.");
-      e.target.value = "";
-      return;
-    }
-
     setIsUploading(true);
     setError(null);
     setSuccessMessage("Parsing Excel file...");
 
-    const brandName = uploadBrands
-      .map((code) => SEASONALITY_BRANDS.find((b) => b.code === code)?.name ?? code)
-      .join(" + ");
+    const brandName = activeTabLabel;
 
     try {
       const data = await file.arrayBuffer();
@@ -173,9 +164,8 @@ export default function SeasonalityAdmin() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             entries: jsonData.slice(i, i + CHUNK_SIZE),
-            // Only pass replaceAll on the first chunk to avoid double-delete
             replaceAll: i === 0 ? replaceExisting : false,
-            brandCodes: uploadBrands,
+            brandCodes: activeTabCodes,
           }),
         });
 
@@ -194,9 +184,7 @@ export default function SeasonalityAdmin() {
         setTimeout(() => setSuccessMessage(null), 5000);
       }
 
-      // Switch to the tab that contains the uploaded brands
-      const matchingTab = BRAND_TABS.find((t) => uploadBrands.some((c) => t.codes.includes(c)));
-      if (matchingTab) setActiveTab(matchingTab.id);
+      // Already on the correct tab — nothing to switch
       fetchEntries();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to import file");
@@ -261,39 +249,18 @@ export default function SeasonalityAdmin() {
         <div className="p-4 space-y-3">
           {/* Brand selector + replace toggle for upload */}
           <div className="flex flex-wrap items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
-            <span className="text-sm font-medium text-gray-600 flex-shrink-0">Upload for:</span>
-            <div className="flex gap-2 flex-wrap items-center flex-1">
-              {SEASONALITY_BRANDS.map((b) => {
-                const selected = uploadBrands.includes(b.code);
-                return (
-                  <button
-                    key={b.code}
-                    type="button"
-                    onClick={() =>
-                      setUploadBrands((prev) =>
-                        prev.includes(b.code) ? prev.filter((x) => x !== b.code) : [...prev, b.code]
-                      )
-                    }
-                    className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition ${selected ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-gray-600 border-gray-200 hover:border-indigo-300 hover:text-indigo-600"}`}
-                  >
-                    {b.name}
-                  </button>
-                );
-              })}
-              <span className="text-xs text-gray-400 italic">Intimissimi &amp; IUMAN UOMO share the same sheet — select both</span>
-            </div>
-            <label className="flex items-center gap-2 cursor-pointer flex-shrink-0">
+            <span className="text-sm font-medium text-gray-600 flex-shrink-0">Uploading for:</span>
+            <span className="px-3 py-1.5 rounded-lg text-sm font-medium bg-indigo-600 text-white">
+              {activeTabLabel}
+            </span>
+            <label className="flex items-center gap-2 cursor-pointer ml-auto">
               <input
                 type="checkbox"
                 checked={replaceExisting}
                 onChange={(e) => setReplaceExisting(e.target.checked)}
                 className="w-4 h-4 text-amber-600 rounded focus:ring-amber-500"
               />
-              <span className="text-sm text-gray-600">
-                Replace {uploadBrands.length > 0
-                  ? uploadBrands.map((c) => SEASONALITY_BRANDS.find((b) => b.code === c)?.name ?? c).join(" + ")
-                  : "selected brands"} data
-              </span>
+              <span className="text-sm text-gray-600">Replace existing {activeTabLabel} data</span>
             </label>
           </div>
 
@@ -317,14 +284,10 @@ export default function SeasonalityAdmin() {
               <button onClick={handleDownload} className="flex items-center gap-2 px-3 py-2 border border-gray-200 bg-white text-gray-700 rounded-lg hover:bg-gray-50 transition text-sm font-medium shadow-sm">
                 <Download className="h-4 w-4" /> Download ({activeTabLabel})
               </button>
-              <label className={`flex items-center gap-2 px-4 py-2 rounded-lg shadow-sm transition text-sm font-medium ${uploadBrands.length === 0 ? "bg-gray-100 text-gray-400 cursor-not-allowed" : isUploading ? "bg-indigo-400 text-white cursor-not-allowed" : "bg-indigo-600 text-white hover:bg-indigo-700 cursor-pointer"}`}>
+              <label className={`flex items-center gap-2 px-4 py-2 rounded-lg shadow-sm transition text-sm font-medium ${isUploading ? "bg-indigo-400 text-white cursor-not-allowed" : "bg-indigo-600 text-white hover:bg-indigo-700 cursor-pointer"}`}>
                 {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                {isUploading
-                  ? "Processing..."
-                  : uploadBrands.length > 0
-                  ? `Upload (${uploadBrands.map((c) => SEASONALITY_BRANDS.find((b) => b.code === c)?.name ?? c).join(" + ")})`
-                  : "Select brand first"}
-                <input type="file" accept=".xlsx,.xls" onChange={handleUpload} disabled={isUploading || uploadBrands.length === 0} className="hidden" />
+                {isUploading ? "Processing..." : "Upload Master Sheet"}
+                <input type="file" accept=".xlsx,.xls" onChange={handleUpload} disabled={isUploading} className="hidden" />
               </label>
               <button onClick={fetchEntries} disabled={loading} className="flex items-center gap-2 px-3 py-2 bg-gray-100 text-gray-900 rounded-lg hover:bg-gray-200 transition text-sm font-medium disabled:opacity-50">
                 <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
