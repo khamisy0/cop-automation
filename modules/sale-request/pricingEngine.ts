@@ -9,15 +9,53 @@ interface EuroRetailMap {
   [compositeKey: string]: number; // brand-mancode -> euroRetail
 }
 
-interface PriceMatrixMap {
-  [compositeKey: string]: number; // country-brand-euroRetail -> unitRetail
+export interface PriceMatrixMap {
+  lookup: { [compositeKey: string]: number }; // country-brand-euroRetail2dp -> unitRetail
+  pricesByCountryBrand: { [countryBrand: string]: number[] }; // country-brand -> sorted available foreignRetailFOB values
 }
 
-/**
- * Find tab name case-insensitively
- * The brand parameter from the DB/dropdown is a code (e.g. B6, 56)
- * But the Excel tabs use the human readable prefix (e.g. UOMO, INT)
- */
+// Convert a price number to a stable 2-decimal string for use in lookup keys.
+// Handles floating-point quirks where 59.9 might be stored as 59.90000000001.
+function priceKey(n: number): string {
+  return (Math.round(n * 100) / 100).toFixed(2);
+}
+
+// Maps full country names to all abbreviations that may appear in Excel tab names
+const COUNTRY_TAB_ALIASES: Record<string, string[]> = {
+  qatar:   ['qat', 'qatar'],
+  bahrain: ['bah', 'bahrain'],
+  kuwait:  ['kwt', 'kuwait', 'kuw'],
+  lebanon: ['leb', 'lebanon'],
+  jordan:  ['jordan'],
+  uae:     ['uae'],
+  ksa:     ['ksa'],
+  egypt:   ['egy', 'egypt'],
+};
+
+// Normalises any country representation (full name, abbreviation, numeric code)
+// to the canonical full name that COUNTRY_CODES uses in the UI.
+const COUNTRY_NORMALIZE: Record<string, string> = {
+  // Full names (pass through, case-insensitive)
+  qatar: 'Qatar', bahrain: 'Bahrain', kuwait: 'Kuwait',
+  lebanon: 'Lebanon', jordan: 'Jordan', uae: 'UAE',
+  ksa: 'KSA', egypt: 'Egypt',
+  // 2-letter ISO codes (used in Price Matrix)
+  qa: 'Qatar', bh: 'Bahrain', kw: 'Kuwait',
+  lb: 'Lebanon', jo: 'Jordan', ae: 'UAE',
+  sa: 'KSA', eg: 'Egypt',
+  // 3-letter abbreviations (used in Price List tabs)
+  qat: 'Qatar', bah: 'Bahrain', kwt: 'Kuwait',
+  leb: 'Lebanon', egy: 'Egypt', jor: 'Jordan',
+  // Numeric codes from COUNTRY_CODES (UI/ERP)
+  '01': 'Lebanon', '02': 'UAE', '03': 'Kuwait',
+  '04': 'Bahrain', '05': 'Jordan', '06': 'Qatar',
+  '08': 'Egypt',   '10': 'KSA',
+};
+
+function normalizeCountry(raw: string): string {
+  return COUNTRY_NORMALIZE[raw.trim().toLowerCase()] ?? raw.trim();
+}
+
 function findTabNameCaseInsensitive(
   priceData: PriceListData,
   brandCode: string,
@@ -29,16 +67,19 @@ function findTabNameCaseInsensitive(
     '55': 'CAL',
     '57': 'TEZ',
   };
-  
-  const brandLabel = brandMap[brandCode] || brandCode;
-  
-  // Note: country from UI is currently the short code e.g. 'UAE'
-  const searchTerm = `${brandLabel} ${countryCode}`.toLowerCase().trim();
-  
-  const tabs = Object.keys(priceData);
-  const foundTab = tabs.find((tab) => tab.trim().toLowerCase() === searchTerm);
-  
-  return foundTab || null;
+
+  const brandLabel = (brandMap[brandCode] || brandCode).toLowerCase();
+  const countryLower = countryCode.toLowerCase();
+  const aliases = COUNTRY_TAB_ALIASES[countryLower] ?? [countryLower];
+
+  for (const tab of Object.keys(priceData)) {
+    const tabNorm = tab.trim().toLowerCase();
+    if (!tabNorm.startsWith(brandLabel)) continue;
+    const countryPart = tabNorm.slice(brandLabel.length).trim();
+    if (aliases.includes(countryPart)) return tab;
+  }
+
+  return null;
 }
 
 /**
@@ -72,6 +113,29 @@ export async function processPricingForItems(
 
   const priceTab = priceListData[tabName];
 
+  // Pre-flight: does the Price Matrix contain ANY rows for the requested country+brand?
+  // If not, return one comprehensive diagnostic instead of the same error per item.
+  const preflightCountry = normalizeCountry(country);
+  const preflightCbKey = `${preflightCountry}-${brand}`;
+  if (!priceMatrixMap.pricesByCountryBrand[preflightCbKey] || priceMatrixMap.pricesByCountryBrand[preflightCbKey].length === 0) {
+    const allKeys = Object.keys(priceMatrixMap.pricesByCountryBrand);
+    const allCountries = Array.from(new Set(allKeys.map((k) => k.split('-')[0]))).sort();
+    const allBrands = Array.from(new Set(allKeys.map((k) => k.split('-').slice(1).join('-')))).sort();
+    const brandsForCountry = allKeys.filter((k) => k.startsWith(`${preflightCountry}-`)).map((k) => k.slice(preflightCountry.length + 1));
+    const countriesForBrand = allKeys.filter((k) => k.endsWith(`-${brand}`)).map((k) => k.slice(0, k.length - brand.length - 1));
+
+    errors.push({
+      message:
+        `Price Matrix has no rows for Country="${preflightCountry}", Brand="${brand}". ` +
+        `Brand codes that exist for ${preflightCountry}: [${brandsForCountry.join(', ') || 'none'}]. ` +
+        `Countries that exist for Brand ${brand}: [${countriesForBrand.join(', ') || 'none'}]. ` +
+        `All countries in DB: [${allCountries.join(', ')}]. ` +
+        `All brand codes in DB: [${allBrands.join(', ')}]. ` +
+        `Total Price Matrix rows: ${allKeys.length === 0 ? 0 : Object.values(priceMatrixMap.lookup).length}.`,
+    });
+    return { processedItems: [], errors };
+  }
+
   items.forEach((item, index) => {
     const rowNum = index + 2; // +2 for header and 1-based indexing
 
@@ -88,13 +152,19 @@ export async function processPricingForItems(
       }
 
       // Step 2: Get Local Retail from price matrix map
-      const localRetailKey = `${country}-${brand}-${euroRetail}`;
-      const originalRetail = priceMatrixMap[localRetailKey];
+      const normCountry = normalizeCountry(country);
+      const localRetailKey = `${normCountry}-${brand}-${priceKey(euroRetail)}`;
+      const originalRetail = priceMatrixMap.lookup[localRetailKey];
 
       if (originalRetail === undefined) {
+        const cbKey = `${normCountry}-${brand}`;
+        const available = priceMatrixMap.pricesByCountryBrand[cbKey] ?? [];
+        const availableMsg = available.length === 0
+          ? `No Price Matrix rows exist for ${normCountry}/${brand}. Upload the Price Matrix for this country/brand first.`
+          : `Available Foreign Retail/FOB values in Price Matrix for ${normCountry}/${brand}: ${available.join(", ")}`;
         errors.push({
           row: rowNum,
-          message: `Local retail price not found in Price Matrix for Country: "${country}", Brand: "${brand}", Euro Retail: "${euroRetail}"`,
+          message: `Local retail price not found in Price Matrix — Mancode: "${item.mancode}", Country: "${normCountry}", Brand: "${brand}", Euro Retail needed: ${euroRetail}. ${availableMsg}`,
         });
         return;
       }
@@ -175,12 +245,26 @@ export function buildPriceMatrixMap(
     unitRetail: number;
   }>
 ): PriceMatrixMap {
-  const map: PriceMatrixMap = {};
+  const lookup: { [k: string]: number } = {};
+  const pricesByCountryBrand: { [k: string]: number[] } = {};
 
   for (const record of priceMatrixRecords) {
-    const key = `${record.country}-${record.brandCode}-${record.foreignRetailFOB}`;
-    map[key] = record.unitRetail;
+    const normCountry = normalizeCountry(record.country);
+    const fobKey = priceKey(record.foreignRetailFOB);
+    const key = `${normCountry}-${record.brandCode}-${fobKey}`;
+    lookup[key] = record.unitRetail;
+
+    const cbKey = `${normCountry}-${record.brandCode}`;
+    if (!pricesByCountryBrand[cbKey]) pricesByCountryBrand[cbKey] = [];
+    const existing = pricesByCountryBrand[cbKey];
+    const rounded = Math.round(record.foreignRetailFOB * 100) / 100;
+    if (!existing.includes(rounded)) existing.push(rounded);
   }
 
-  return map;
+  // Sort each list for clearer error messages
+  for (const k of Object.keys(pricesByCountryBrand)) {
+    pricesByCountryBrand[k].sort((a, b) => a - b);
+  }
+
+  return { lookup, pricesByCountryBrand };
 }

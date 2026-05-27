@@ -49,6 +49,7 @@ export default function SeasonalityAdmin() {
   const [currentPage, setCurrentPage] = useState(1);
   const [isClearing, setIsClearing] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
+  const [confirmClearLegacy, setConfirmClearLegacy] = useState(false);
 
   useEffect(() => { fetchEntries(); }, []);
   useEffect(() => { setCurrentPage(1); }, [activeTab, searchFilters]);
@@ -68,13 +69,18 @@ export default function SeasonalityAdmin() {
   }
 
   // Per-tab stats (INT+UOMO combined, CAL separate, TEZ separate)
+  // NOTE: avoid spread-into-Math.max — with 180K+ entries that overflows the call stack.
   const tabStats = useMemo(() =>
     BRAND_TABS.map((tab) => {
-      const tabEntries = entries.filter((e) => tab.codes.includes(e.brandCode));
-      const lastUpdated = tabEntries.length > 0
-        ? new Date(Math.max(...tabEntries.map((e) => new Date(e.updatedAt).getTime())))
-        : null;
-      return { ...tab, count: tabEntries.length, lastUpdated };
+      let count = 0;
+      let maxTime = 0;
+      for (const e of entries) {
+        if (!tab.codes.includes(e.brandCode)) continue;
+        count++;
+        const t = new Date(e.updatedAt).getTime();
+        if (t > maxTime) maxTime = t;
+      }
+      return { ...tab, count, lastUpdated: maxTime > 0 ? new Date(maxTime) : null };
     }), [entries]);
 
   // Derived from active tab — drives both the table filter and the upload target
@@ -102,6 +108,23 @@ export default function SeasonalityAdmin() {
       const res = await r.json();
       setSuccessMessage(`Database cleared (${res.count} records removed)`);
       setConfirmClear(false);
+      setTimeout(() => setSuccessMessage(null), 3000);
+      fetchEntries();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An error occurred");
+    } finally {
+      setIsClearing(false);
+    }
+  }
+
+  async function handleClearLegacy() {
+    try {
+      setIsClearing(true);
+      const r = await fetch("/api/admin/seasonality?legacy=true", { method: "DELETE" });
+      if (!r.ok) throw new Error("Failed to delete legacy records");
+      const res = await r.json();
+      setSuccessMessage(`Deleted ${res.count} legacy records (no brand assigned)`);
+      setConfirmClearLegacy(false);
       setTimeout(() => setSuccessMessage(null), 3000);
       fetchEntries();
     } catch (err) {
@@ -140,7 +163,24 @@ export default function SeasonalityAdmin() {
 
     try {
       const data = await file.arrayBuffer();
-      const workbook = XLSX.read(data);
+      const u8 = new Uint8Array(data);
+      let workbook;
+      try {
+        workbook = XLSX.read(u8, { type: "array" });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (/encrypt/i.test(msg)) {
+          try {
+            workbook = XLSX.read(u8, { type: "array", password: "" });
+          } catch {
+            throw new Error(
+              'The file is flagged as encrypted by its source system. Open it in Microsoft Excel, "Save As" a new .xlsx, and re-upload.'
+            );
+          }
+        } else {
+          throw err;
+        }
+      }
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const jsonData = XLSX.utils.sheet_to_json(sheet) as Array<any>;
 
@@ -270,6 +310,17 @@ export default function SeasonalityAdmin() {
               <p className="text-xs text-gray-400">{filteredEntries.length.toLocaleString()} records</p>
             </div>
             <div className="flex flex-wrap gap-2">
+              {confirmClearLegacy ? (
+                <div className="flex items-center gap-2 bg-amber-50 px-3 py-1.5 rounded-lg border border-amber-200">
+                  <span className="text-sm font-medium text-amber-800">Delete {entries.filter(e => e.brandCode === "").length.toLocaleString()} legacy records?</span>
+                  <button onClick={handleClearLegacy} disabled={isClearing} className="px-2 py-1 bg-amber-600 text-white rounded text-xs font-medium hover:bg-amber-700 transition">Yes</button>
+                  <button onClick={() => setConfirmClearLegacy(false)} className="px-2 py-1 bg-white text-gray-600 border border-gray-200 rounded text-xs font-medium hover:bg-gray-50 transition">Cancel</button>
+                </div>
+              ) : (
+                <button onClick={() => setConfirmClearLegacy(true)} className="flex items-center gap-2 px-3 py-2 bg-white border border-amber-300 text-amber-700 rounded-lg hover:bg-amber-50 transition text-sm font-medium">
+                  <Trash2 className="h-4 w-4" /> Delete Legacy Data
+                </button>
+              )}
               {confirmClear ? (
                 <div className="flex items-center gap-2 bg-red-50 px-3 py-1.5 rounded-lg border border-red-100">
                   <span className="text-sm font-medium text-red-700">Delete ALL records?</span>

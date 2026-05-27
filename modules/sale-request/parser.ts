@@ -6,6 +6,28 @@
 import * as XLSX from 'xlsx';
 import { ItemListRow, PriceListData, PriceTable } from './types';
 
+// Retry-with-empty-password fallback for ERP-exported files that falsely
+// flag themselves as encrypted (ECMA-376 Encrypted file missing /EncryptionInfo).
+function readWorkbookResilient(buffer: ArrayBuffer) {
+  const u8 = new Uint8Array(buffer);
+  try {
+    return XLSX.read(u8, { type: 'array' });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (/encrypt/i.test(msg)) {
+      try {
+        return XLSX.read(u8, { type: 'array', password: '' });
+      } catch {
+        throw new Error(
+          'The file appears to be flagged as encrypted by its source system. ' +
+          'Please open the file in Microsoft Excel, "Save As" a new .xlsx, and re-upload.'
+        );
+      }
+    }
+    throw e;
+  }
+}
+
 /**
  * Parse Item List Excel file
  * Supports multiple column header formats (English and Italian)
@@ -14,7 +36,7 @@ import { ItemListRow, PriceListData, PriceTable } from './types';
  */
 export async function parseItemListFile(file: File): Promise<ItemListRow[]> {
   const buffer = await file.arrayBuffer();
-  const workbook = XLSX.read(buffer, { type: 'array' });
+  const workbook = readWorkbookResilient(buffer);
   const sheetName = workbook.SheetNames[0];
   const worksheet = workbook.Sheets[sheetName];
   const rawData = XLSX.utils.sheet_to_json(worksheet) as Array<Record<string, unknown>>;
@@ -49,7 +71,7 @@ export async function parseItemListFile(file: File): Promise<ItemListRow[]> {
  */
 export async function parsePriceListFile(file: File): Promise<PriceListData> {
   const buffer = await file.arrayBuffer();
-  const workbook = XLSX.read(buffer, { type: 'array' });
+  const workbook = readWorkbookResilient(buffer);
 
   const priceData: PriceListData = {};
 
@@ -107,24 +129,15 @@ function parsePriceSheet(
     // Create entry for this local retail price
     priceTable[localRetailValue] = {};
 
-    // Find and extract discount percentage columns (25, 35, 50, 70, 80)
-    const discountColumns = ['25', '35', '50', '70', '80'];
-
-    for (const discountCol of discountColumns) {
-      // Try to find column with or without % symbol
-      const columnKey = allKeys.find(
-        (key) =>
-          key.trim() === discountCol ||
-          key.trim() === `${discountCol}%` ||
-          key.toLowerCase().includes(discountCol)
-      );
-
-      if (columnKey) {
-        const value = row[columnKey];
+    // Detect all numeric columns (discount percentages like 20, 25, 30, 50 etc.)
+    // A column qualifies if its name is a pure integer (with optional % suffix)
+    for (const key of allKeys) {
+      if (key === localRetailKey) continue;
+      const stripped = key.trim().replace(/%$/, '');
+      if (/^\d+$/.test(stripped)) {
+        const value = row[key];
         if (value !== undefined && value !== null && value !== '') {
-          priceTable[localRetailValue][discountCol] = parseFloat(
-            String(value)
-          );
+          priceTable[localRetailValue][stripped] = parseFloat(String(value));
         }
       }
     }

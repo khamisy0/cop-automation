@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+// Large master sheets (180K+ rows) need the longer serverless function timeout.
+export const maxDuration = 60;
+
 // This parser accommodates multiple naming conventions from user's Excel files
 // Priority determines which record is the "source of truth", lower = more important
 export async function POST(request: Request) {
@@ -26,9 +29,22 @@ export async function POST(request: Request) {
       errors: [] as string[],
     };
 
-    // Wipe records for all selected brands before inserting
+    // Wipe records for all selected brands before inserting.
+    // Batched to avoid statement_timeout on large existing datasets.
     if (replaceAll) {
-      await prisma.seasonalityReference.deleteMany({ where: { brandCode: { in: brands } } });
+      const DELETE_BATCH = 10000;
+      for (;;) {
+        const batch = await prisma.seasonalityReference.findMany({
+          where: { brandCode: { in: brands } },
+          select: { id: true },
+          take: DELETE_BATCH,
+        });
+        if (batch.length === 0) break;
+        await prisma.seasonalityReference.deleteMany({
+          where: { id: { in: batch.map((r) => r.id) } },
+        });
+        if (batch.length < DELETE_BATCH) break;
+      }
     }
 
     const extractField = (entry: any, possibleKeywords: string[], excludeKeywords: string[] = []): string => {
@@ -98,12 +114,17 @@ export async function POST(request: Request) {
     }
 
     if (dataToInsert.length > 0) {
-      // Create many to be fast
-      const insertResult = await prisma.seasonalityReference.createMany({
-        data: dataToInsert,
-        skipDuplicates: true, // Gracefully handle duplicate composite keys if added later
-      });
-      results.created = insertResult.count;
+      // Insert in sub-batches — a single createMany of 5K+ rows can exceed
+      // Postgres parameter limits or the connection's statement_timeout.
+      const INSERT_BATCH = 1000;
+      for (let i = 0; i < dataToInsert.length; i += INSERT_BATCH) {
+        const slice = dataToInsert.slice(i, i + INSERT_BATCH);
+        const insertResult = await prisma.seasonalityReference.createMany({
+          data: slice,
+          skipDuplicates: true,
+        });
+        results.created += insertResult.count;
+      }
     }
 
     if (results.created === 0 && !replaceAll) {
@@ -126,8 +147,9 @@ export async function POST(request: Request) {
     
   } catch (error) {
     console.error("Error importing seasonality data:", error);
+    const msg = error instanceof Error ? error.message : String(error);
     return NextResponse.json(
-      { error: "Internal server error during import" },
+      { error: `Internal server error during import: ${msg}` },
       { status: 500 }
     );
   }

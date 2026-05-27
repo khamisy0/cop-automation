@@ -1,6 +1,31 @@
 import { read, utils } from 'xlsx';
 import { BrandManagerRow, RHMRow, ProcessingError } from './types';
 
+// Some ERP-exported xlsx files (typical for RHM files) ship as a CFBF container
+// that declares encryption but has no actual encryption metadata. SheetJS throws
+// "ECMA-376 Encrypted file missing /EncryptionInfo". A retry with an empty password
+// usually bypasses the false-encryption flag.
+function readWorkbookResilient(buffer: ArrayBuffer, baseOpts: Parameters<typeof read>[1] = {}) {
+  const u8 = new Uint8Array(buffer);
+  try {
+    return read(u8, { type: 'array', ...baseOpts });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (/encrypt/i.test(msg)) {
+      // Retry treating the file as having an empty password
+      try {
+        return read(u8, { type: 'array', password: '', ...baseOpts });
+      } catch {
+        throw new Error(
+          'The file appears to be flagged as encrypted by its source system, but Excel can still open it. ' +
+          'Please open the file in Microsoft Excel, then "Save As" a new .xlsx file and re-upload the saved copy.'
+        );
+      }
+    }
+    throw e;
+  }
+}
+
 /**
  * Parse Brand Manager Excel file
  * Expected columns: Mancode, Color, Season, Sale Price
@@ -14,7 +39,7 @@ export async function parseBrandManager(file: File): Promise<{
 
   try {
     const buffer = await file.arrayBuffer();
-    const workbook = read(buffer, { cellText: true, cellDates: false });
+    const workbook = readWorkbookResilient(buffer, { cellText: true, cellDates: false });
 
     // Get first sheet
     const sheetName = workbook.SheetNames[0];
@@ -129,7 +154,7 @@ export async function parseRHM(file: File): Promise<{
 
   try {
     const buffer = await file.arrayBuffer();
-    const workbook = read(buffer, { cellText: true, cellDates: false });
+    const workbook = readWorkbookResilient(buffer, { cellText: true, cellDates: false });
 
     // Get first sheet
     const sheetName = workbook.SheetNames[0];

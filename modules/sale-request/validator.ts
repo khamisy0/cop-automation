@@ -5,12 +5,19 @@
 
 import { ItemListRow, ProcessingError, PriceListData } from './types';
 
-const VALID_DISCOUNTS = [0.25, 0.35, 0.5, 0.7, 0.8];
-const DISCOUNT_COLUMNS = ['25', '35', '50', '70', '80'];
 
-/**
- * Find tab name case-insensitively
- */
+// Maps full country names to all abbreviations that may appear in Excel tab names
+const COUNTRY_TAB_ALIASES: Record<string, string[]> = {
+  qatar:   ['qat', 'qatar'],
+  bahrain: ['bah', 'bahrain'],
+  kuwait:  ['kwt', 'kuwait', 'kuw'],
+  lebanon: ['leb', 'lebanon'],
+  jordan:  ['jordan'],
+  uae:     ['uae'],
+  ksa:     ['ksa'],
+  egypt:   ['egy', 'egypt'],
+};
+
 function findTabNameCaseInsensitive(
   priceData: PriceListData,
   brandCode: string,
@@ -22,16 +29,19 @@ function findTabNameCaseInsensitive(
     '55': 'CAL',
     '57': 'TEZ',
   };
-  
-  const brandLabel = brandMap[brandCode] || brandCode;
-  
-  // Note: country from UI is currently the short code e.g. 'UAE'
-  const searchTerm = `${brandLabel} ${countryCode}`.toLowerCase().trim();
-  
-  const tabs = Object.keys(priceData);
-  const foundTab = tabs.find((tab) => tab.trim().toLowerCase() === searchTerm);
-  
-  return foundTab || null;
+
+  const brandLabel = (brandMap[brandCode] || brandCode).toLowerCase();
+  const countryLower = countryCode.toLowerCase();
+  const aliases = COUNTRY_TAB_ALIASES[countryLower] ?? [countryLower];
+
+  for (const tab of Object.keys(priceData)) {
+    const tabNorm = tab.trim().toLowerCase();
+    if (!tabNorm.startsWith(brandLabel)) continue;
+    const countryPart = tabNorm.slice(brandLabel.length).trim();
+    if (aliases.includes(countryPart)) return tab;
+  }
+
+  return null;
 }
 
 /**
@@ -73,18 +83,18 @@ export function validateItemList(items: ItemListRow[]): ProcessingError[] {
     }
 
     // Validate discount
-    if (item.discount === undefined || item.discount === null) {
+    if (item.discount === undefined || item.discount === null || isNaN(item.discount)) {
       errors.push({
         row: rowNum,
         column: 'discount',
-        message: 'Discount is required',
+        message: 'Discount is required and must be a number (e.g. 0.25 for 25%)',
         value: item.discount,
       });
-    } else if (!VALID_DISCOUNTS.includes(item.discount)) {
+    } else if (item.discount <= 0 || item.discount >= 1) {
       errors.push({
         row: rowNum,
         column: 'discount',
-        message: `Discount must be one of: ${VALID_DISCOUNTS.join(', ')}`,
+        message: `Discount must be between 0 and 1 exclusive (e.g. 0.2 for 20%)`,
         value: item.discount,
       });
     }
@@ -127,18 +137,6 @@ export function validatePriceList(
       message: `Price list tab "${tabName}" is empty`,
     });
     return errors;
-  }
-
-  // Validate that each row has the required discount columns
-  for (const [localRetail, discounts] of Object.entries(tabData)) {
-    const missingColumns = DISCOUNT_COLUMNS.filter(
-      (col) => !(col in discounts)
-    );
-    if (missingColumns.length > 0) {
-      errors.push({
-        message: `Local Retail price ${localRetail} missing discount columns: ${missingColumns.join(', ')}`,
-      });
-    }
   }
 
   return errors;
