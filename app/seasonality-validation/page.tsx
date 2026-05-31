@@ -4,15 +4,8 @@ import { useState } from "react";
 import { Upload, FileText, CheckCircle, AlertTriangle, Download, Loader2, Globe } from "lucide-react";
 import * as XLSX from "xlsx";
 import { ValidationEngineResponse } from "@/modules/seasonality/types";
-import { COUNTRY_CODES } from "@/lib/constants";
+import { COUNTRY_CODES, SEASONALITY_BRAND_GROUPS } from "@/lib/constants";
 import SearchableSelect from "@/components/ui/SearchableSelect";
-
-const SEASONALITY_BRANDS = [
-  { code: "56", name: "Intimissimi" },
-  { code: "B6", name: "IUMAN UOMO" },
-  { code: "55", name: "Calzedonia" },
-  { code: "57", name: "Tezenis" },
-];
 
 export default function SeasonalityValidation() {
   const [activeTab, setActiveTab] = useState<"upload" | "paste">("upload");
@@ -198,7 +191,7 @@ export default function SeasonalityValidation() {
             </div>
             <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
               <SearchableSelect
-                options={SEASONALITY_BRANDS.map((b) => ({ value: b.code, label: `${b.name} - ${b.code}` }))}
+                options={SEASONALITY_BRAND_GROUPS.map((g) => ({ value: g.storeCode, label: g.label }))}
                 value={targetBrand}
                 onChange={setTargetBrand}
                 placeholder="Select brand *"

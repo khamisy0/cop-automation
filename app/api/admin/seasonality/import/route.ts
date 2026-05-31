@@ -9,11 +9,19 @@ export const maxDuration = 60;
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { entries, replaceAll, brandCodes } = body;
-    // brandCodes is an array — allows uploading one sheet for multiple brands (e.g. INT + UOMO)
+    const { entries, replaceAll, brandCodes, replaceCodes } = body;
+    // brandCodes = the code(s) to INSERT under. For the INT/UOMO group this is a
+    // single canonical code so rows are NOT duplicated across "56" and "B6".
     const brands: string[] = Array.isArray(brandCodes)
       ? brandCodes.map((b: string) => b.trim()).filter(Boolean)
       : [];
+
+    // replaceCodes = the code(s) to WIPE when replaceAll is set. Defaults to the
+    // insert targets, but for INT/UOMO it also includes the legacy "B6" code so a
+    // re-upload cleans up the old duplicated rows.
+    const deleteTargets: string[] = Array.isArray(replaceCodes) && replaceCodes.length > 0
+      ? replaceCodes.map((b: string) => b.trim()).filter(Boolean)
+      : brands;
 
     if (!Array.isArray(entries) || entries.length === 0) {
       return NextResponse.json({ error: "No entries to import" }, { status: 400 });
@@ -35,7 +43,7 @@ export async function POST(request: Request) {
       const DELETE_BATCH = 10000;
       for (;;) {
         const batch = await prisma.seasonalityReference.findMany({
-          where: { brandCode: { in: brands } },
+          where: { brandCode: { in: deleteTargets } },
           select: { id: true },
           take: DELETE_BATCH,
         });

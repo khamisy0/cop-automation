@@ -3,20 +3,11 @@
 import { useEffect, useState, useMemo } from "react";
 import { Download, Upload, X, Check, ChevronLeft, ChevronRight, Loader2, AlertTriangle, Trash2, RefreshCw } from "lucide-react";
 import * as XLSX from "xlsx";
+import { SEASONALITY_BRAND_GROUPS } from "@/lib/constants";
 
-const SEASONALITY_BRANDS = [
-  { code: "56", name: "Intimissimi" },
-  { code: "B6", name: "IUMAN UOMO" },
-  { code: "55", name: "Calzedonia" },
-  { code: "57", name: "Tezenis" },
-];
-
-// Tabs — INT and UOMO share one tab since they use the same sheet
-const BRAND_TABS = [
-  { id: "int-uomo", label: "Intimissimi / IUMAN UOMO", codes: ["56", "B6"] },
-  { id: "cal",      label: "Calzedonia",                codes: ["55"] },
-  { id: "tez",      label: "Tezenis",                   codes: ["57"] },
-];
+// One tab per brand group. INT + UOMO are a single group (shared sheet, one
+// canonical storeCode) so rows are stored once, not duplicated across codes.
+const BRAND_TABS = SEASONALITY_BRAND_GROUPS;
 
 interface SeasonalityEntry {
   id: number;
@@ -33,8 +24,18 @@ interface SeasonalityEntry {
 
 const PAGE_SIZE = 20;
 
+interface BrandStat {
+  brandCode: string;
+  count: number;
+  lastUpdated: string | null;
+}
+
 export default function SeasonalityAdmin() {
-  const [entries, setEntries] = useState<SeasonalityEntry[]>([]);
+  // The table now holds ONE page of rows (server-paginated). The whole dataset
+  // is far too large to ship to the browser — see the GET route for why.
+  const [rows, setRows] = useState<SeasonalityEntry[]>([]);
+  const [total, setTotal] = useState(0);
+  const [stats, setStats] = useState<BrandStat[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -45,21 +46,68 @@ export default function SeasonalityAdmin() {
   });
 
   const [isUploading, setIsUploading] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
   const [replaceExisting, setReplaceExisting] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [isClearing, setIsClearing] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
   const [confirmClearLegacy, setConfirmClearLegacy] = useState(false);
 
-  useEffect(() => { fetchEntries(); }, []);
+  // Derived from active tab. `codes` = every code the group owns (stats + table
+  // filter + cleanup on replace); `storeCode` = the single canonical code rows
+  // are written under, so INT/UOMO is stored once instead of duplicated.
+  const activeGroup = useMemo(
+    () => BRAND_TABS.find((t) => t.id === activeTab) ?? BRAND_TABS[0],
+    [activeTab]
+  );
+  const activeTabCodes = useMemo(() => activeGroup.codes, [activeGroup]);
+
+  // Reset to page 1 whenever the tab or filters change
   useEffect(() => { setCurrentPage(1); }, [activeTab, searchFilters]);
 
-  async function fetchEntries() {
+  // Fetch the brand counts once (and refresh after mutations)
+  useEffect(() => { fetchStats(); }, []);
+
+  // Fetch the current page of rows whenever the query inputs change.
+  // Debounced so typing in a filter doesn't fire a request per keystroke.
+  useEffect(() => {
+    const handle = setTimeout(() => { fetchRows(); }, 250);
+    return () => clearTimeout(handle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, searchFilters, currentPage]);
+
+  function buildRowQuery(page: number, pageSize: number) {
+    const params = new URLSearchParams({
+      brands: activeTabCodes.join(","),
+      page: String(page),
+      pageSize: String(pageSize),
+    });
+    if (searchFilters.country) params.set("country", searchFilters.country);
+    if (searchFilters.priority) params.set("priority", searchFilters.priority);
+    if (searchFilters.mancode) params.set("mancode", searchFilters.mancode);
+    if (searchFilters.colorCode) params.set("colorCode", searchFilters.colorCode);
+    if (searchFilters.season) params.set("season", searchFilters.season);
+    return params;
+  }
+
+  async function fetchStats() {
+    try {
+      const r = await fetch("/api/admin/seasonality?mode=stats");
+      if (!r.ok) throw new Error("Failed to fetch");
+      setStats(await r.json());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An error occurred");
+    }
+  }
+
+  async function fetchRows() {
     try {
       setLoading(true);
-      const r = await fetch("/api/admin/seasonality");
+      const r = await fetch(`/api/admin/seasonality?${buildRowQuery(currentPage, PAGE_SIZE)}`);
       if (!r.ok) throw new Error("Failed to fetch");
-      setEntries(await r.json());
+      const data = await r.json();
+      setRows(data.rows ?? []);
+      setTotal(data.total ?? 0);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
@@ -68,37 +116,33 @@ export default function SeasonalityAdmin() {
     }
   }
 
-  // Per-tab stats (INT+UOMO combined, CAL separate, TEZ separate)
-  // NOTE: avoid spread-into-Math.max — with 180K+ entries that overflows the call stack.
+  async function refreshAll() {
+    await Promise.all([fetchStats(), fetchRows()]);
+  }
+
+  // Per-tab stats (INT+UOMO combined, CAL separate, TEZ separate) — summed from
+  // the server-side per-brand aggregate.
   const tabStats = useMemo(() =>
     BRAND_TABS.map((tab) => {
       let count = 0;
       let maxTime = 0;
-      for (const e of entries) {
-        if (!tab.codes.includes(e.brandCode)) continue;
-        count++;
-        const t = new Date(e.updatedAt).getTime();
-        if (t > maxTime) maxTime = t;
+      for (const s of stats) {
+        if (!tab.codes.includes(s.brandCode)) continue;
+        count += s.count;
+        if (s.lastUpdated) {
+          const t = new Date(s.lastUpdated).getTime();
+          if (t > maxTime) maxTime = t;
+        }
       }
       return { ...tab, count, lastUpdated: maxTime > 0 ? new Date(maxTime) : null };
-    }), [entries]);
+    }), [stats]);
 
-  // Derived from active tab — drives both the table filter and the upload target
-  const activeTabCodes = BRAND_TABS.find((t) => t.id === activeTab)?.codes ?? [];
+  const legacyCount = useMemo(
+    () => stats.find((s) => s.brandCode === "")?.count ?? 0,
+    [stats]
+  );
 
-  const filteredEntries = useMemo(() =>
-    entries
-      .filter((e) => activeTabCodes.includes(e.brandCode))
-      .filter((e) =>
-        e.country.toLowerCase().includes(searchFilters.country.toLowerCase()) &&
-        e.priority.toString().includes(searchFilters.priority) &&
-        e.mancode.toLowerCase().includes(searchFilters.mancode.toLowerCase()) &&
-        e.colorCode.toLowerCase().includes(searchFilters.colorCode.toLowerCase()) &&
-        e.season.toLowerCase().includes(searchFilters.season.toLowerCase())
-      ), [entries, activeTab, searchFilters]);
-
-  const totalPages = Math.ceil(filteredEntries.length / PAGE_SIZE);
-  const paginatedEntries = filteredEntries.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const totalPages = Math.ceil(total / PAGE_SIZE);
 
   async function handleClearAll() {
     try {
@@ -109,7 +153,7 @@ export default function SeasonalityAdmin() {
       setSuccessMessage(`Database cleared (${res.count} records removed)`);
       setConfirmClear(false);
       setTimeout(() => setSuccessMessage(null), 3000);
-      fetchEntries();
+      refreshAll();
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
@@ -126,7 +170,7 @@ export default function SeasonalityAdmin() {
       setSuccessMessage(`Deleted ${res.count} legacy records (no brand assigned)`);
       setConfirmClearLegacy(false);
       setTimeout(() => setSuccessMessage(null), 3000);
-      fetchEntries();
+      refreshAll();
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
@@ -134,21 +178,43 @@ export default function SeasonalityAdmin() {
     }
   }
 
-  function handleDownload() {
+  async function handleDownload() {
     const brandName = BRAND_TABS.find((t) => t.id === activeTab)?.label ?? activeTab;
-    const ws = XLSX.utils.json_to_sheet(filteredEntries.map((e) => ({
-      "Brand Code": e.brandCode,
-      "Country": e.country || "GLOBAL",
-      "Priority": e.priority,
-      "From (date)": e.fromDate1 ?? "",
-      "Mancode": e.mancode,
-      "Color Code": e.colorCode,
-      "Season": e.season,
-      "From (second)": e.fromDate2 ?? "",
-    })));
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "SeasonalityReference");
-    XLSX.writeFile(wb, `seasonality-${brandName.toLowerCase().replace(/\s+/g, "-")}.xlsx`);
+    try {
+      setIsDownloading(true);
+      setError(null);
+      // Pull every matching row by paging the API — one big response would blow
+      // the serverless body limit, so we accumulate large pages client-side.
+      const DL_PAGE = 5000;
+      const all: SeasonalityEntry[] = [];
+      let page = 1;
+      for (;;) {
+        const r = await fetch(`/api/admin/seasonality?${buildRowQuery(page, DL_PAGE)}`);
+        if (!r.ok) throw new Error("Failed to fetch data for download");
+        const data = await r.json();
+        all.push(...(data.rows ?? []));
+        if (all.length >= (data.total ?? 0) || (data.rows ?? []).length < DL_PAGE) break;
+        page++;
+      }
+
+      const ws = XLSX.utils.json_to_sheet(all.map((e) => ({
+        "Brand Code": e.brandCode,
+        "Country": e.country || "GLOBAL",
+        "Priority": e.priority,
+        "From (date)": e.fromDate1 ?? "",
+        "Mancode": e.mancode,
+        "Color Code": e.colorCode,
+        "Season": e.season,
+        "From (second)": e.fromDate2 ?? "",
+      })));
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "SeasonalityReference");
+      XLSX.writeFile(wb, `seasonality-${brandName.toLowerCase().replace(/\s+/g, "-")}.xlsx`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to download data");
+    } finally {
+      setIsDownloading(false);
+    }
   }
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -205,7 +271,8 @@ export default function SeasonalityAdmin() {
           body: JSON.stringify({
             entries: jsonData.slice(i, i + CHUNK_SIZE),
             replaceAll: i === 0 ? replaceExisting : false,
-            brandCodes: activeTabCodes,
+            brandCodes: [activeGroup.storeCode], // insert once under the canonical code
+            replaceCodes: activeTabCodes,          // wipe all owned codes (incl. legacy B6) on replace
           }),
         });
 
@@ -225,7 +292,7 @@ export default function SeasonalityAdmin() {
       }
 
       // Already on the correct tab — nothing to switch
-      fetchEntries();
+      refreshAll();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to import file");
       setSuccessMessage(null);
@@ -307,12 +374,12 @@ export default function SeasonalityAdmin() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-sm font-medium text-gray-700">{activeTabLabel} — Seasonality Reference</p>
-              <p className="text-xs text-gray-400">{filteredEntries.length.toLocaleString()} records</p>
+              <p className="text-xs text-gray-400">{total.toLocaleString()} records</p>
             </div>
             <div className="flex flex-wrap gap-2">
               {confirmClearLegacy ? (
                 <div className="flex items-center gap-2 bg-amber-50 px-3 py-1.5 rounded-lg border border-amber-200">
-                  <span className="text-sm font-medium text-amber-800">Delete {entries.filter(e => e.brandCode === "").length.toLocaleString()} legacy records?</span>
+                  <span className="text-sm font-medium text-amber-800">Delete {legacyCount.toLocaleString()} legacy records?</span>
                   <button onClick={handleClearLegacy} disabled={isClearing} className="px-2 py-1 bg-amber-600 text-white rounded text-xs font-medium hover:bg-amber-700 transition">Yes</button>
                   <button onClick={() => setConfirmClearLegacy(false)} className="px-2 py-1 bg-white text-gray-600 border border-gray-200 rounded text-xs font-medium hover:bg-gray-50 transition">Cancel</button>
                 </div>
@@ -332,15 +399,16 @@ export default function SeasonalityAdmin() {
                   <Trash2 className="h-4 w-4" /> Clear All
                 </button>
               )}
-              <button onClick={handleDownload} className="flex items-center gap-2 px-3 py-2 border border-gray-200 bg-white text-gray-700 rounded-lg hover:bg-gray-50 transition text-sm font-medium shadow-sm">
-                <Download className="h-4 w-4" /> Download ({activeTabLabel})
+              <button onClick={handleDownload} disabled={isDownloading} className="flex items-center gap-2 px-3 py-2 border border-gray-200 bg-white text-gray-700 rounded-lg hover:bg-gray-50 transition text-sm font-medium shadow-sm disabled:opacity-50">
+                {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                {isDownloading ? "Preparing..." : `Download (${activeTabLabel})`}
               </button>
               <label className={`flex items-center gap-2 px-4 py-2 rounded-lg shadow-sm transition text-sm font-medium ${isUploading ? "bg-indigo-400 text-white cursor-not-allowed" : "bg-indigo-600 text-white hover:bg-indigo-700 cursor-pointer"}`}>
                 {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
                 {isUploading ? "Processing..." : "Upload Master Sheet"}
                 <input type="file" accept=".xlsx,.xls" onChange={handleUpload} disabled={isUploading} className="hidden" />
               </label>
-              <button onClick={fetchEntries} disabled={loading} className="flex items-center gap-2 px-3 py-2 bg-gray-100 text-gray-900 rounded-lg hover:bg-gray-200 transition text-sm font-medium disabled:opacity-50">
+              <button onClick={refreshAll} disabled={loading} className="flex items-center gap-2 px-3 py-2 bg-gray-100 text-gray-900 rounded-lg hover:bg-gray-200 transition text-sm font-medium disabled:opacity-50">
                 <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
               </button>
             </div>
@@ -355,7 +423,7 @@ export default function SeasonalityAdmin() {
             <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
             <p>Loading...</p>
           </div>
-        ) : paginatedEntries.length === 0 ? (
+        ) : rows.length === 0 ? (
           <div className="p-16 flex flex-col items-center justify-center text-gray-400 gap-3">
             <AlertTriangle className="h-10 w-10 text-gray-300" />
             <p className="text-lg font-medium text-gray-500">No data for {activeTabLabel}</p>
@@ -386,7 +454,7 @@ export default function SeasonalityAdmin() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {paginatedEntries.map((entry) => (
+                {rows.map((entry) => (
                   <tr key={entry.id} className="hover:bg-gray-50 transition duration-150">
                     <td className="px-4 py-3">
                       <span className={`px-2 py-1 rounded text-xs font-bold ${entry.priority === 1 ? "bg-indigo-100 text-indigo-700" : "bg-gray-100 text-gray-600"}`}>
@@ -414,8 +482,8 @@ export default function SeasonalityAdmin() {
           <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 bg-gray-50/50">
             <p className="text-sm text-gray-500">
               Showing <span className="font-medium">{(currentPage - 1) * PAGE_SIZE + 1}</span> to{" "}
-              <span className="font-medium">{Math.min(currentPage * PAGE_SIZE, filteredEntries.length)}</span> of{" "}
-              <span className="font-medium">{filteredEntries.length.toLocaleString()}</span>
+              <span className="font-medium">{Math.min(currentPage * PAGE_SIZE, total)}</span> of{" "}
+              <span className="font-medium">{total.toLocaleString()}</span>
             </p>
             <div className="flex items-center gap-1">
               <button onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-1.5 rounded-lg hover:bg-gray-200 disabled:opacity-40 transition"><ChevronLeft className="w-4 h-4 text-gray-600" /></button>
